@@ -2,6 +2,9 @@ name: Deploy to GitHub Pages
 on: [push]
 jobs:
   deploy:
+    permissions: 
+      contents: read
+      pages: write
     runs-on: ubuntu-latest
     name: Deploy
     steps:
