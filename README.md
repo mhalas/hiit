@@ -1,42 +1,43 @@
-# HIIT
+# Interwałowy Timer Treningowy
+Lekka, minimalistyczna aplikacja webowa stworzona w Vue 3 do konfiguracji i śledzenia własnych treningów interwałowych (np. HIIT, Tabata, obwody).
 
-This template should help get you started developing with Vue 3 in Vite.
+🚀 Wypróbuj aplikację na żywo: https://mhalas.github.io/hiit
 
-## Recommended IDE Setup
+## Funkcje
+* Konfigurator Treningu: Dodawaj, usuwaj i modyfikuj ćwiczenia, ustalaj czasy pracy, odpoczynku oraz liczbę serii.
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+* Inteligentne Linki: Konfiguracja treningu jest kodowana i przesyłana w URL – łatwo udostępnisz swój plan treningowy znajomym.
 
-## Recommended Browser Setup
+* Dynamiczny Licznik:
+  * Duży, okrągły timer z animacją postępu zgodną z ruchem wskazówek zegara.
+  * Automatyczna zmiana kolorów (pomarańczowy dla wysiłku, zielony dla odpoczynku i przerw między obwodami).
+  * Wskaźnik aktualnie wykonywanego ćwiczenia na liście harmonogramu.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+* Responsywność: W pełni dostosowana do wygodnego korzystania na ekranach smartfonów.
 
-## Type Support for `.vue` Imports in TS
+## Technologie
+* Vue 3 (Composition API, <script setup>)
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+* TypeScript
 
-## Customize configuration
+* Vue Router
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+* CSS3 / SVG (Płynne animacje i minimalistyczny dark mode)
 
-## Project Setup
+## Uruchomienie projektu lokalnie
+### Sklonuj repozytorium:
+```
+git clone
+```
 
-```sh
+### Zainstaluj zależności:
+```
 npm install
 ```
 
-### Compile and Hot-Reload for Development
-
-```sh
+### Uruchom serwer deweloperski:
+```
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
+Otwórz aplikację w przeglądarce pod adresem wskazanym w terminalu (zazwyczaj http://localhost:5173).
