@@ -1,7 +1,10 @@
 import { computed, ref, type Ref } from "vue";
 import type { Workout } from "@/types/workout";
+import { useSound } from "./useSound";
 
 export function useTimer(workout: Ref<Workout>) {
+    const { playBeep, playChangeSound } = useSound();
+
     const currentSet = ref(1);
     const currentExerciseIndex = ref(0);
     const isRunning = ref(false);
@@ -17,6 +20,8 @@ export function useTimer(workout: Ref<Workout>) {
     });
 
     const nextStep = () => {
+        playChangeSound();
+
         if (currentPhase.value === 'rest' && currentExerciseIndex.value === -1) {
             currentSet.value++;
             currentExerciseIndex.value = 0;
@@ -74,8 +79,14 @@ export function useTimer(workout: Ref<Workout>) {
         isRunning.value = true;
 
         timerInterval = window.setInterval(() => {
-            if (secondsLeft.value > 0) {
+            if (secondsLeft.value > 1) {
                 secondsLeft.value--;
+                if(secondsLeft.value <= 3) {
+                    playBeep(440, 0.1);
+                }
+            } else if(secondsLeft.value === 1) {
+                secondsLeft.value--;
+                playBeep(880, 0.15);
             } else {
                 nextStep();
             }
