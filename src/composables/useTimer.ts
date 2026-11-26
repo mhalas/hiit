@@ -1,13 +1,16 @@
 import { computed, onScopeDispose, ref, type Ref } from "vue";
 import type { Workout } from "@/types/workout";
 import { useSound } from "./useSound";
+import { useWakeLock } from "./useWakeLock";
 
 export type TimerPhase = 'work' | 'rest';
 
 const BETWEEN_SETS = -1;
+const TICK_MS = 200;
 
 export function useTimer(workout: Ref<Workout>) {
-    const { playBeep, playChangeSound, playFinishSound, dispose: disposeSound } = useSound();
+    const { unlock: unlockAudio, playBeep, playChangeSound, playFinishSound } = useSound();
+    const wakeLock = useWakeLock();
 
     const firstWorkDuration = () => workout.value.exercises[0]?.workoutDuration ?? 0;
 
@@ -18,6 +21,9 @@ export function useTimer(workout: Ref<Workout>) {
     const isRunning = ref(false);
     const isFinished = ref(false);
 
+    const phaseEndsAt = ref(0);
+    const pausedRemainingMs = ref(firstWorkDuration() * 1000);
+
     let timerInterval: ReturnType<typeof setInterval> | null = null;
 
     const currentExercise = computed(() => {
@@ -27,42 +33,44 @@ export function useTimer(workout: Ref<Workout>) {
     const isLastExercise = () => currentExerciseIndex.value >= workout.value.exercises.length - 1;
     const isLastSet = () => currentSet.value >= workout.value.sets;
 
-    const enterPhase = (phase: TimerPhase, seconds: number) => {
+    const enterPhase = (phase: TimerPhase, seconds: number, startedAt: number) => {
         currentPhase.value = phase;
         secondsLeft.value = seconds;
-        playChangeSound();
+        phaseEndsAt.value = startedAt + seconds * 1000;
+        pausedRemainingMs.value = seconds * 1000;
     };
 
-    const startNextSet = () => {
+    const startNextSet = (startedAt: number) => {
         currentSet.value++;
         currentExerciseIndex.value = 0;
-        enterPhase('work', firstWorkDuration());
+        enterPhase('work', firstWorkDuration(), startedAt);
     };
 
     const finish = () => {
         pause();
         isFinished.value = true;
         secondsLeft.value = 0;
+        pausedRemainingMs.value = 0;
         playFinishSound();
     };
 
-    const moveToNextExerciseOrSet = () => {
+    const moveToNextExerciseOrSet = (startedAt: number) => {
         if (!isLastExercise()) {
             currentExerciseIndex.value++;
-            enterPhase('work', currentExercise.value?.workoutDuration ?? 0);
+            enterPhase('work', currentExercise.value?.workoutDuration ?? 0, startedAt);
         } else if (isLastSet()) {
             finish();
         } else if (workout.value.restBetweenSets > 0) {
             currentExerciseIndex.value = BETWEEN_SETS;
-            enterPhase('rest', workout.value.restBetweenSets);
+            enterPhase('rest', workout.value.restBetweenSets, startedAt);
         } else {
-            startNextSet();
+            startNextSet(startedAt);
         }
     };
 
-    const nextStep = () => {
+    const nextStep = (startedAt: number) => {
         if (currentExerciseIndex.value === BETWEEN_SETS) {
-            startNextSet();
+            startNextSet(startedAt);
             return;
         }
 
@@ -74,19 +82,46 @@ export function useTimer(workout: Ref<Workout>) {
 
         const isLastExerciseOfWorkout = isLastExercise() && isLastSet();
         if (currentPhase.value === 'work' && ex.restDuration > 0 && !isLastExerciseOfWorkout) {
-            enterPhase('rest', ex.restDuration);
+            enterPhase('rest', ex.restDuration, startedAt);
         } else {
-            moveToNextExerciseOrSet();
+            moveToNextExerciseOrSet(startedAt);
         }
     };
 
     const tick = () => {
-        secondsLeft.value = Math.max(0, secondsLeft.value - 1);
-        if (secondsLeft.value === 0) {
-            nextStep();
-        } else if (secondsLeft.value <= 3) {
+        if (!isRunning.value) {
+            return;
+        }
+
+        const now = performance.now();
+        let phaseChanged = false;
+        while (isRunning.value && now >= phaseEndsAt.value) {
+            nextStep(phaseEndsAt.value);
+            phaseChanged = true;
+        }
+
+        if (!isRunning.value) {
+            return;
+        }
+
+        if (phaseChanged) {
+            playChangeSound();
+        }
+
+        const seconds = Math.ceil((phaseEndsAt.value - now) / 1000);
+        if (seconds === secondsLeft.value) {
+            return;
+        }
+
+        const isCountdown = !phaseChanged && seconds < secondsLeft.value && seconds <= 3;
+        secondsLeft.value = seconds;
+        if (isCountdown) {
             playBeep(440, 0.1);
         }
+    };
+
+    const remainingMsAt = (now: number) => {
+        return isRunning.value ? Math.max(0, phaseEndsAt.value - now) : pausedRemainingMs.value;
     };
 
     const start = () => {
@@ -94,16 +129,24 @@ export function useTimer(workout: Ref<Workout>) {
             return;
         }
 
+        unlockAudio();
+        void wakeLock.acquire();
+
+        phaseEndsAt.value = performance.now() + pausedRemainingMs.value;
         isRunning.value = true;
-        timerInterval = setInterval(tick, 1000);
+        timerInterval = setInterval(tick, TICK_MS);
     };
 
     const pause = () => {
+        if (isRunning.value) {
+            pausedRemainingMs.value = Math.max(0, phaseEndsAt.value - performance.now());
+        }
         isRunning.value = false;
         if (timerInterval !== null) {
             clearInterval(timerInterval);
             timerInterval = null;
         }
+        wakeLock.release();
     };
 
     const reset = () => {
@@ -113,11 +156,20 @@ export function useTimer(workout: Ref<Workout>) {
         currentExerciseIndex.value = 0;
         currentPhase.value = 'work';
         secondsLeft.value = firstWorkDuration();
+        pausedRemainingMs.value = firstWorkDuration() * 1000;
     };
+
+    const onVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+            tick();
+        }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     onScopeDispose(() => {
         pause();
-        disposeSound();
+        document.removeEventListener('visibilitychange', onVisibilityChange);
     });
 
     return {
@@ -128,6 +180,7 @@ export function useTimer(workout: Ref<Workout>) {
         currentExerciseIndex,
         isRunning,
         isFinished,
+        remainingMsAt,
         start,
         pause,
         reset,

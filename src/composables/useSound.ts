@@ -1,6 +1,7 @@
-export function useSound() {
-  let audioCtx: AudioContext | null = null;
+let audioCtx: AudioContext | null = null;
+let isUnlocked = false;
 
+export function useSound() {
   const getAudioContext = () => {
     if (!audioCtx) {
       // @ts-ignore
@@ -12,14 +13,29 @@ export function useSound() {
     return audioCtx;
   };
 
+  const unlock = () => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+
+      if (!isUnlocked) {
+        const source = ctx.createBufferSource();
+        source.buffer = ctx.createBuffer(1, 1, 22050);
+        source.connect(ctx.destination);
+        source.start(0);
+        isUnlocked = true;
+      }
+    } catch (e) {
+      console.error('Błąd inicjalizacji dźwięku:', e);
+    }
+  };
+
   const playBeep = (frequency = 440, duration = 0.15) => {
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
-      
-      if (ctx.state === 'suspended') {
-        ctx.resume();
-      }
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -44,7 +60,7 @@ export function useSound() {
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
 
       const now = ctx.currentTime;
       const osc = ctx.createOscillator();
@@ -71,7 +87,7 @@ export function useSound() {
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
 
       [523.25, 659.25, 783.99].forEach((frequency, i) => {
         const start = ctx.currentTime + i * 0.18;
@@ -95,17 +111,10 @@ export function useSound() {
     }
   };
 
-  const dispose = () => {
-    if (audioCtx) {
-      audioCtx.close().catch(() => {});
-      audioCtx = null;
-    }
-  };
-
   return {
+    unlock,
     playBeep,
     playChangeSound,
     playFinishSound,
-    dispose,
   };
 }

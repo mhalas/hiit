@@ -17,7 +17,7 @@ const loadError: 'invalid' | 'empty' | null =
 
 const {
     secondsLeft, currentSet, currentPhase, currentExercise, currentExerciseIndex,
-    isRunning, isFinished, start, pause, reset,
+    isRunning, isFinished, remainingMsAt, start, pause, reset,
 } = useTimer(workout);
 
 const backToConfigurator = () => {
@@ -28,7 +28,6 @@ const backToConfigurator = () => {
     router.push({ path: '/configurator', query: { data: encodeWorkout(workout.value) } });
 };
 
-const lastTickAt = ref(performance.now());
 const now = ref(performance.now());
 let animationFrame: number | null = null;
 
@@ -44,13 +43,9 @@ const stopAnimation = () => {
     }
 };
 
-watch([secondsLeft, isRunning], () => {
-    lastTickAt.value = performance.now();
-    now.value = lastTickAt.value;
-}, { flush: 'sync' });
-
 watch(isRunning, (running) => {
     stopAnimation();
+    now.value = performance.now();
     if (running) {
         animate();
     }
@@ -58,13 +53,7 @@ watch(isRunning, (running) => {
 
 onUnmounted(stopAnimation);
 
-const remainingSeconds = computed(() => {
-    if (!isRunning.value) {
-        return secondsLeft.value;
-    }
-    const elapsed = Math.min(Math.max((now.value - lastTickAt.value) / 1000, 0), 1);
-    return Math.max(secondsLeft.value - elapsed, 0);
-});
+const remainingSeconds = computed(() => remainingMsAt(now.value) / 1000);
 
 const phaseDuration = computed(() => {
     if (currentPhase.value === 'rest' && currentExerciseIndex.value === -1) {
