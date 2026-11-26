@@ -36,8 +36,13 @@ const totalText = computed(() =>
 const setsText = computed(() =>
   countPl(toValidInt(workout.value.sets, 'sets'), 'seria', 'serie', 'serii'),
 );
-const stepsText = computed(() =>
-  countPl(preview.value.length, 'interwał', 'interwały', 'interwałów'),
+const intervalsText = computed(() =>
+  countPl(
+    preview.value.filter((step) => step.kind === 'work').length,
+    'interwał',
+    'interwały',
+    'interwałów',
+  ),
 );
 const exerciseCountText = computed(() =>
   countPl(workout.value.exercises.length, 'ćwiczenie', 'ćwiczenia', 'ćwiczeń'),
@@ -171,7 +176,7 @@ const removeExercise = (index: number) => {
 
       <div class="summary" aria-live="polite">
         <span class="chip">{{ setsText }}</span>
-        <span class="chip">{{ stepsText }}</span>
+        <span class="chip">{{ intervalsText }}</span>
         <span class="chip chip--accent">{{ totalText }} łącznie</span>
       </div>
 

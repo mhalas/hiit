@@ -248,12 +248,34 @@ describe('ConfiguratorView – steppers and summary', () => {
     await mountConfigurator({ data: encodeWorkout(sample) });
     const chips = () => wrapper.findAll('.summary .chip').map((chip) => chip.text());
 
-    expect(chips()).toEqual(['2 serie', '4 interwały', '2:20 łącznie']);
+    expect(chips()).toEqual(['2 serie', '2 interwały', '2:20 łącznie']);
     expect(startButton().text()).toContain('2:20');
 
     await click('Więcej serii');
 
-    expect(chips()).toEqual(['3 serie', '7 interwałów', '4:00 łącznie']);
+    expect(chips()).toEqual(['3 serie', '3 interwały', '4:00 łącznie']);
+  });
+
+  it('counts only work intervals, not rests or set breaks', async () => {
+    await mountConfigurator({
+      data: encodeWorkout({
+        title: 'Obwód',
+        sets: 3,
+        restBetweenSets: 30,
+        exercises: [
+          { name: 'Pompki', workoutDuration: 20, restDuration: 10 },
+          { name: 'Przysiady', workoutDuration: 20, restDuration: 10 },
+          { name: 'Burpees', workoutDuration: 20, restDuration: 0 },
+        ],
+      }),
+    });
+
+    expect(wrapper.findAll('.summary .chip')[1]!.text()).toBe('9 interwałów');
+
+    await click('Mniej serii');
+    await click('Mniej serii');
+
+    expect(wrapper.findAll('.summary .chip')[1]!.text()).toBe('3 interwały');
   });
 
   it('keeps the summary sensible while a number is being typed', async () => {
