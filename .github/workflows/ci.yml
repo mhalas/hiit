@@ -1,9 +1,11 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches-ignore: [main]
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -25,6 +27,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run type-check
+
       - run: npm test
 
-      - run: npm run build
+      - run: npm run build-only
