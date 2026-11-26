@@ -269,6 +269,56 @@ describe('ConfiguratorView – steppers and summary', () => {
   });
 });
 
+describe('ConfiguratorView – share button', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'share');
+  });
+
+  const mockShare = () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: share });
+    return share;
+  };
+
+  it('shares a full link with the latest workout, even while typing', async () => {
+    const share = mockShare();
+    await mountConfigurator({ data: encodeWorkout(sample) });
+    await type(wrapper.get('input[type="text"]'), 'Nowa nazwa');
+
+    await wrapper.get('.share-button').trigger('click');
+    await flushPromises();
+
+    const { title, url } = share.mock.calls[0]![0] as { title: string; url: string };
+    const shared = new URL(url);
+    expect(title).toBe('Nowa nazwa');
+    expect(shared.origin).toBe(window.location.origin);
+    expect(shared.pathname).toBe('/configurator');
+    expect(decodeWorkout(shared.searchParams.get('data'))).toMatchObject({
+      title: 'Nowa nazwa',
+      exercises: [{ name: 'Przysiady' }],
+    });
+  });
+
+  it('uses a default title for an unnamed workout', async () => {
+    const share = mockShare();
+    await mountConfigurator({ data: encodeWorkout({ ...sample, title: ' ' }) });
+
+    await wrapper.get('.share-button').trigger('click');
+    await flushPromises();
+
+    expect(share.mock.calls[0]![0]).toMatchObject({ title: 'Trening HIIT' });
+  });
+
+  it('is disabled while there are no exercises', async () => {
+    await mountConfigurator();
+
+    expect(wrapper.get('.share-button').attributes('disabled')).toBeDefined();
+
+    await wrapper.get('.btn-add').trigger('click');
+    expect(wrapper.get('.share-button').attributes('disabled')).toBeUndefined();
+  });
+});
+
 describe('ConfiguratorView – link in the address bar', () => {
   it('updates the link through the router 300 ms after typing stops', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });

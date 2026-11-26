@@ -4,6 +4,7 @@ import type { Exercise } from '@/types/exercise';
 import type { Workout } from '@/types/workout';
 import { useRoute, useRouter } from 'vue-router';
 import NumberStepper from '@/components/NumberStepper.vue';
+import ShareButton from '@/components/ShareButton.vue';
 import { decodeWorkout, encodeWorkout } from '@/utils/encoding';
 import { countPl } from '@/utils/plural';
 import { formatDuration } from '@/utils/time';
@@ -98,6 +99,18 @@ const startWorkout = async () => {
   await router.push({ path: '/timer', query: { data: encodeWorkout(workout.value) } });
 };
 
+const shareTitle = computed(() => workout.value.title.trim() || 'Trening HIIT');
+
+const getShareUrl = async () => {
+  sanitizeWorkout(workout.value);
+  await syncUrl();
+  const href = router.resolve({
+    path: '/configurator',
+    query: { data: encodeWorkout(workout.value) },
+  }).href;
+  return new URL(href, window.location.origin).href;
+};
+
 const addExercise = () => {
   workout.value.exercises.push({
     name: '',
@@ -130,6 +143,11 @@ const removeExercise = (index: number) => {
         </svg>
       </RouterLink>
       <h1 class="config-header__title display">Skonfiguruj trening</h1>
+      <ShareButton
+        :title="shareTitle"
+        :get-url="getShareUrl"
+        :disabled="workout.exercises.length === 0"
+      />
     </header>
 
     <p v-if="loadError" class="alert" role="alert">
@@ -312,14 +330,18 @@ const removeExercise = (index: number) => {
 
 .config-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 16px 0 4px;
 }
 
 .config-header__title {
+  flex: 1 1 0;
+  min-width: 0;
   margin: 0;
   font-size: 1.75rem;
+  line-height: 1;
 }
 
 .alert {
