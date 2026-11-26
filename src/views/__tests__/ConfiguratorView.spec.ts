@@ -50,7 +50,7 @@ async function type(input: Pick<DOMWrapper<Element>, 'element' | 'trigger'>, val
 }
 
 async function addExercise(name: string) {
-  await wrapper.get('.btn-text').trigger('click');
+  await wrapper.get('.btn-add').trigger('click');
   const rows = wrapper.findAll('.exercise-row');
   await type(rows[rows.length - 1]!.get('input[type="text"]'), name);
 }
@@ -190,6 +190,81 @@ describe('ConfiguratorView – accessibility and list', () => {
 
     expect(urlWorkout()?.exercises).toEqual([
       { name: 'Pompki', workoutDuration: 30, restDuration: 10 },
+    ]);
+  });
+});
+
+describe('ConfiguratorView – steppers and summary', () => {
+  const value = (index: number) =>
+    Number((numberInputs()[index]!.element as HTMLInputElement).value);
+  const click = (label: string) => wrapper.get(`[aria-label="${label}"]`).trigger('click');
+
+  it('changes the number of sets and the set break with the − / + buttons', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+
+    await click('Więcej serii');
+    await click('Dłuższa przerwa między seriami');
+
+    expect(value(0)).toBe(3);
+    expect(value(1)).toBe(50);
+
+    await click('Mniej serii');
+    await click('Mniej serii');
+    await click('Mniej serii');
+
+    expect(value(0)).toBe(1);
+    expect(wrapper.get('[aria-label="Mniej serii"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('changes exercise times in 5-second steps', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+
+    await click('Wydłuż pracę – Przysiady');
+    await click('Skróć odpoczynek – Przysiady');
+
+    expect(value(2)).toBe(45);
+    expect(value(3)).toBe(10);
+  });
+
+  it('names the buttons after unnamed exercises by number', async () => {
+    await mountConfigurator();
+    await wrapper.get('.btn-add').trigger('click');
+
+    expect(wrapper.find('[aria-label="Wydłuż pracę – ćwiczenie 1"]').exists()).toBe(true);
+  });
+
+  it('puts stepper changes into the link', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await mountConfigurator({ data: encodeWorkout(sample) });
+
+    await click('Wydłuż pracę – Przysiady');
+    vi.advanceTimersByTime(300);
+    await flushPromises();
+
+    expect(urlWorkout()?.exercises[0]?.workoutDuration).toBe(45);
+  });
+
+  it('shows the sets, number of intervals and total time, and keeps them up to date', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+    const chips = () => wrapper.findAll('.summary .chip').map((chip) => chip.text());
+
+    expect(chips()).toEqual(['2 serie', '4 interwały', '2:20 łącznie']);
+    expect(startButton().text()).toContain('2:20');
+
+    await click('Więcej serii');
+
+    expect(chips()).toEqual(['3 serie', '7 interwałów', '4:00 łącznie']);
+  });
+
+  it('keeps the summary sensible while a number is being typed', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+
+    await type(numberInputs()[0]!, '');
+
+    expect(wrapper.findAll('.summary .chip').map((chip) => chip.text())).toEqual([
+      '1 seria',
+      '1 interwał',
+      '0:40 łącznie',
     ]);
   });
 });

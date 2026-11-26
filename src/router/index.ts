@@ -6,7 +6,7 @@ import TimerView from '@/views/TimerView.vue';
 export const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomeView },
   { path: '/configurator', name: 'configurator', component: ConfiguratorView },
-  { path: '/timer', name: 'timer', component: TimerView },
+  { path: '/timer', name: 'timer', component: TimerView, meta: { hideFooter: true } },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 

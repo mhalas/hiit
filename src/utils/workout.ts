@@ -8,7 +8,12 @@ const INT_FIELDS = {
   restDuration: { min: 0, fallback: 0 },
 } as const;
 
-type IntField = keyof typeof INT_FIELDS;
+export type IntField = keyof typeof INT_FIELDS;
+
+export const minFor = (field: IntField): number => INT_FIELDS[field].min;
+
+export const stepValue = (value: unknown, field: IntField, delta: number): number =>
+  toValidInt(toValidInt(value, field) + delta, field);
 
 export function createEmptyWorkout(): Workout {
   return { title: '', exercises: [], sets: 1, restBetweenSets: 0 };

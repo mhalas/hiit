@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { minFor, stepValue } from '@/utils/workout';
 import {
   createEmptyWorkout,
   isValidInt,
@@ -132,5 +133,27 @@ describe('normalizeWorkout', () => {
     expect(
       normalizeWorkout({ exercises: [], extra: true, sets: 1, restBetweenSets: 0, title: '' }),
     ).toEqual(createEmptyWorkout());
+  });
+});
+
+describe('minFor and stepValue', () => {
+  it('knows the minimum of each field', () => {
+    expect(minFor('sets')).toBe(1);
+    expect(minFor('workoutDuration')).toBe(1);
+    expect(minFor('restDuration')).toBe(0);
+    expect(minFor('restBetweenSets')).toBe(0);
+  });
+
+  it.each([
+    [10, 'restDuration', 5, 15],
+    [10, 'restDuration', -5, 5],
+    [3, 'restDuration', -5, 0],
+    [1, 'sets', -1, 1],
+    [3, 'workoutDuration', -5, 1],
+    ['', 'sets', 1, 2],
+    ['', 'workoutDuration', 5, 35],
+    [2.6, 'sets', 1, 4],
+  ] as const)('stepValue(%j, %s, %i) = %i', (value, field, delta, expected) => {
+    expect(stepValue(value, field, delta)).toBe(expected);
   });
 });

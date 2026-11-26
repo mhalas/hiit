@@ -13,8 +13,6 @@ import {
   workoutOf,
 } from '@/__tests__/helpers';
 
-const CIRCUMFERENCE = 2 * Math.PI * 120;
-
 let router: Router;
 let wrapper: VueWrapper;
 
@@ -37,10 +35,11 @@ async function mountTimer(data: string | undefined) {
 const mountWorkout = (workout: Workout) => mountTimer(encodeWorkout(workout));
 
 const ringFill = () => {
-  const circle = wrapper.get('.progress-ring__circle').element as SVGCircleElement;
-  const offset = Number(circle.style.strokeDashoffset);
-  return 1 - offset / CIRCUMFERENCE;
+  const fill = wrapper.get('.phase-progress__fill').element as HTMLElement;
+  return Number.parseFloat(fill.style.width) / 100;
 };
+
+const nextCard = () => wrapper.get('.next-card').text();
 
 const text = (selector: string) => wrapper.get(selector).text();
 
@@ -85,11 +84,12 @@ describe('TimerView – loading', () => {
     expect(wrapper.findAll('.item-name').map((n) => n.text())).toEqual(['Pompki', 'Ćwiczenie 2']);
   });
 
-  it('announces phase changes to screen readers but hides the decorative ring', async () => {
+  it('announces phase changes to screen readers but hides the decorative progress', async () => {
     await mountWorkout(workoutOf({ exercises: [exercise('a', 10, 0)] }));
 
     expect(wrapper.get('.phase-label').attributes('aria-live')).toBe('polite');
-    expect(wrapper.get('.progress-ring').attributes('aria-hidden')).toBe('true');
+    expect(wrapper.get('.phase-progress').attributes('aria-hidden')).toBe('true');
+    expect(wrapper.get('.step-strip').attributes('aria-hidden')).toBe('true');
   });
 
   it('sends you to an empty configurator from the error screen', async () => {
@@ -109,7 +109,7 @@ describe('TimerView – loading', () => {
 
     expect(text('.badge')).toBe('Poranny');
     expect(text('.timer-header h2')).toBe('Seria 1 / 3');
-    expect(text('.time-left')).toBe('30s');
+    expect(text('.time-left')).toBe('30');
     expect(text('.exercise-name-current')).toBe('Pompki');
     expect(text('.timer-controls .btn-primary')).toBe('Start');
     expect(ringFill()).toBeCloseTo(1);
@@ -185,14 +185,17 @@ describe('TimerView – controls and finish', () => {
     await advanceAndRender(9000);
 
     expect(text('.phase-label')).toBe('TRENING ZAKOŃCZONY');
-    expect(text('.time-left')).toBe('✓');
+    expect(wrapper.find('.time-left').exists()).toBe(false);
+    expect(wrapper.find('.face__done').exists()).toBe(true);
+    expect(text('.exercise-name-current')).toBe('Świetna robota!');
+    expect(wrapper.find('.next-card').exists()).toBe(false);
     expect(button.text()).toBe('Od nowa');
     expect(wrapper.findAll('.playlist-item.active')).toHaveLength(0);
 
     await button.trigger('click');
 
     expect(button.text()).toBe('Start');
-    expect(text('.time-left')).toBe('2s');
+    expect(text('.time-left')).toBe('2');
     expect(text('.phase-label')).toBe('ĆWICZENIE');
   });
 
@@ -235,14 +238,18 @@ describe('TimerView – next exercise, time left and skipping', () => {
     );
     await wrapper.get('.timer-controls .btn-primary').trigger('click');
     expect(text('.exercise-name-current')).toBe('Pompki');
+    expect(nextCard()).toContain('Odpoczynek');
+    expect(nextCard()).toContain('3 s');
 
     await advanceAndRender(2000);
     expect(text('.phase-label')).toBe('ODPOCZYNEK');
-    expect(text('.exercise-name-current')).toBe('Następne: Przysiady');
+    expect(wrapper.find('.exercise-name-current').exists()).toBe(false);
+    expect(nextCard()).toContain('Przysiady');
 
     await advanceAndRender(5000);
     expect(text('.phase-label')).toBe('PRZERWA MIĘDZY SERIAMI');
-    expect(text('.exercise-name-current')).toBe('Następne: Pompki');
+    expect(nextCard()).toContain('Pompki');
+    expect(nextCard()).toContain('2 s');
   });
 
   it('uses a numbered name for exercises without a name', async () => {
@@ -250,7 +257,7 @@ describe('TimerView – next exercise, time left and skipping', () => {
     expect(text('.exercise-name-current')).toBe('Ćwiczenie 1');
 
     await skipForwardButton().trigger('click');
-    expect(text('.exercise-name-current')).toBe('Następne: Ćwiczenie 2');
+    expect(nextCard()).toContain('Ćwiczenie 2');
   });
 
   it('shows the time left for the whole workout and counts it down', async () => {
@@ -277,13 +284,13 @@ describe('TimerView – next exercise, time left and skipping', () => {
 
     await skipForwardButton().trigger('click');
     expect(text('.phase-label')).toBe('ODPOCZYNEK');
-    expect(text('.time-left')).toBe('10s');
+    expect(text('.time-left')).toBe('10');
     expect(text('.total-left')).toBe('Pozostało 0:30');
     expect(ringFill()).toBeCloseTo(1);
 
     await skipBackButton().trigger('click');
     expect(text('.phase-label')).toBe('ĆWICZENIE');
-    expect(text('.time-left')).toBe('30s');
+    expect(text('.time-left')).toBe('30');
   });
 
   it('can skip to the end, and back from the finish screen', async () => {
@@ -295,14 +302,76 @@ describe('TimerView – next exercise, time left and skipping', () => {
 
     await skipBackButton().trigger('click');
     expect(text('.phase-label')).toBe('ĆWICZENIE');
-    expect(text('.time-left')).toBe('30s');
+    expect(text('.time-left')).toBe('30');
   });
 
   it('labels the icon buttons for screen readers', async () => {
     await mountWorkout(workoutOf({ exercises: [exercise('a', 30, 0)] }));
 
-    expect(wrapper.findAll('.timer-controls button')).toHaveLength(4);
+    expect(wrapper.findAll('.timer-controls button')).toHaveLength(3);
     expect(skipBackButton().attributes('title')).toBe('Poprzedni krok');
     expect(skipForwardButton().attributes('title')).toBe('Następny krok');
+    expect(wrapper.get('.timer-controls .btn-primary').text()).toBe('Start');
+  });
+
+  it('starts over from the reset button in the header', async () => {
+    await mountWorkout(workoutOf({ exercises: [exercise('a', 30, 10), exercise('b', 20, 0)] }));
+    await skipForwardButton().trigger('click');
+    await skipForwardButton().trigger('click');
+    expect(text('.exercise-name-current')).toBe('b');
+
+    await wrapper.get('.timer-header [aria-label="Zacznij od początku"]').trigger('click');
+
+    expect(text('.exercise-name-current')).toBe('a');
+    expect(text('.time-left')).toBe('30');
+  });
+});
+
+describe('TimerView – full-screen phases and step strip (Puls)', () => {
+  const segmentFills = () =>
+    wrapper
+      .findAll('.step-strip__fill')
+      .map((fill) => Number.parseFloat((fill.element as HTMLElement).style.width) / 100);
+
+  it('marks the screen with the current phase so the style can colour it', async () => {
+    await mountWorkout(
+      workoutOf({ sets: 2, restBetweenSets: 4, exercises: [exercise('a', 2, 3)] }),
+    );
+    const timer = () => wrapper.get('.timer').attributes('data-phase');
+    expect(timer()).toBe('work');
+
+    await wrapper.get('.timer-controls .btn-primary').trigger('click');
+    await advanceAndRender(2000);
+    expect(timer()).toBe('rest');
+
+    await advanceAndRender(3000);
+    expect(timer()).toBe('setBreak');
+
+    await advanceAndRender(6000);
+    expect(timer()).toBe('done');
+  });
+
+  it('shows one strip segment per step and fills them as the workout goes on', async () => {
+    await mountWorkout(workoutOf({ exercises: [exercise('a', 4, 2), exercise('b', 4, 0)] }));
+    expect(segmentFills()).toEqual([0, 0, 0]);
+
+    await wrapper.get('.timer-controls .btn-primary').trigger('click');
+    await advanceAndRender(2000);
+    const [first, second, third] = segmentFills();
+    expect(first).toBeCloseTo(0.5, 2);
+    expect([second, third]).toEqual([0, 0]);
+
+    await advanceAndRender(4000);
+    expect(segmentFills()[0]).toBe(1);
+    expect(segmentFills()[1]).toBe(1);
+    expect(segmentFills()[2]).toBeCloseTo(0, 2);
+  });
+
+  it('fills the whole strip on the finish screen', async () => {
+    await mountWorkout(workoutOf({ exercises: [exercise('a', 2, 0), exercise('b', 2, 0)] }));
+    await wrapper.get('[aria-label="Następny krok"]').trigger('click');
+    await wrapper.get('[aria-label="Następny krok"]').trigger('click');
+
+    expect(segmentFills()).toEqual([1, 1]);
   });
 });

@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, type Ref } from 'vue';
+import { computed, onScopeDispose, readonly, ref, type Ref } from 'vue';
 import type { TimerPhase } from '@/types/timer';
 import type { Workout } from '@/types/workout';
 import { buildTimeline } from '@/utils/timeline';
@@ -195,6 +195,8 @@ export function useTimer(workout: Ref<Workout>) {
   });
 
   return {
+    timeline,
+    stepIndex: readonly(stepIndex),
     secondsLeft,
     currentStep,
     currentSet,

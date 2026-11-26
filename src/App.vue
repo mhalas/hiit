@@ -1,11 +1,26 @@
+<script setup lang="ts">
+import { useRoute } from 'vue-router';
+import ThemePicker from '@/components/ThemePicker.vue';
+import { useTheme } from '@/composables/useTheme';
+
+const route = useRoute();
+const { theme, themes, hasThemeChoice, setTheme } = useTheme();
+</script>
+
 <template>
   <div class="app-layout">
     <main class="content">
       <router-view />
     </main>
 
-    <footer class="global-footer">
+    <footer v-if="!route.meta.hideFooter" class="global-footer">
       <p>&copy; 2026 WorkoutTimer. Stworzony dla pasjonatów HIIT.</p>
+      <ThemePicker
+        v-if="hasThemeChoice"
+        :themes="themes"
+        :model-value="theme.id"
+        @update:model-value="setTheme"
+      />
       <div class="footer-links">
         <router-link to="/">Start</router-link>
         <router-link to="/configurator">Konfigurator</router-link>
@@ -29,15 +44,20 @@
 }
 
 .global-footer {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 1.5rem 2rem;
-  text-align: center;
-  color: var(--text-dim);
-  font-size: 0.9rem;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  border-top: 1px solid var(--color-border);
+  padding: 24px 20px 32px;
+  color: var(--color-text-dim);
+  font-size: 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  align-items: center;
+  gap: 10px;
+}
+
+.global-footer p {
+  margin: 0;
 }
 
 .footer-links {
@@ -46,22 +66,8 @@
 }
 
 .footer-links a {
-  color: var(--text-dim);
+  padding: 12px 0;
+  font-weight: 600;
   text-decoration: none;
-  transition: color 0.2s;
-}
-
-.footer-links a:hover {
-  color: var(--accent);
-}
-
-@media (min-width: 640px) {
-  .global-footer {
-    flex-direction: row;
-    justify-content: space-between;
-    max-width: 900px;
-    margin: 0 auto;
-    width: 100%;
-  }
 }
 </style>

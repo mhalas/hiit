@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { decodeWorkout, encodeWorkout } from '@/utils/encoding';
-import type { StepKind } from '@/types/timer';
-import type { Workout } from '@/types/workout';
+import StepStrip from '@/components/StepStrip.vue';
+import { useTheme } from '@/composables/useTheme';
 import { useTimer } from '@/composables/useTimer';
+import type { StepKind, TimerStep } from '@/types/timer';
+import type { Workout } from '@/types/workout';
+import { decodeWorkout, encodeWorkout } from '@/utils/encoding';
 import { formatDuration } from '@/utils/time';
 import { createEmptyWorkout } from '@/utils/workout';
 
 const route = useRoute();
 const router = useRouter();
+const { theme } = useTheme();
 
 const decoded = decodeWorkout(route.query.data);
 const workout = ref<Workout>(decoded ?? createEmptyWorkout());
@@ -17,10 +20,11 @@ const loadError: 'invalid' | 'empty' | null =
   decoded === null ? 'invalid' : decoded.exercises.length === 0 ? 'empty' : null;
 
 const {
+  timeline,
+  stepIndex,
   secondsLeft,
   currentStep,
   currentSet,
-  currentPhase,
   currentExerciseIndex,
   upcomingStep,
   isRunning,
@@ -69,30 +73,26 @@ watch(isRunning, (running) => {
 
 onUnmounted(stopAnimation);
 
-const remainingSeconds = computed(() => remainingMsAt(now.value) / 1000);
-
 const progress = computed(() => {
   if (isFinished.value) {
     return 1;
   }
   const maxTime = currentStep.value?.duration ?? 0;
-  return maxTime > 0 ? remainingSeconds.value / maxTime : 0;
+  return maxTime > 0 ? remainingMsAt(now.value) / 1000 / maxTime : 0;
 });
 
 const totalTimeLeft = computed(() => formatDuration(totalRemainingMsAt(now.value) / 1000));
 
-const PHASE_LABELS: Record<StepKind, string> = {
+const phase = computed<StepKind | 'done'>(() =>
+  isFinished.value ? 'done' : (currentStep.value?.kind ?? 'work'),
+);
+
+const PHASE_LABELS: Record<StepKind | 'done', string> = {
   work: 'ĆWICZENIE',
   rest: 'ODPOCZYNEK',
   setBreak: 'PRZERWA MIĘDZY SERIAMI',
+  done: 'TRENING ZAKOŃCZONY',
 };
-
-const currentPhaseText = computed(() => {
-  if (isFinished.value) {
-    return 'TRENING ZAKOŃCZONY';
-  }
-  return PHASE_LABELS[currentStep.value?.kind ?? 'work'];
-});
 
 const exerciseName = (index: number | null) => {
   if (index === null) {
@@ -101,14 +101,34 @@ const exerciseName = (index: number | null) => {
   return workout.value.exercises[index]?.name.trim() || `Ćwiczenie ${index + 1}`;
 };
 
-const exerciseLine = computed(() => {
+const stepLabel = (step: TimerStep) => {
+  if (step.kind === 'work') {
+    return exerciseName(step.exerciseIndex);
+  }
+  return step.kind === 'rest' ? 'Odpoczynek' : 'Przerwa między seriami';
+};
+
+const faceTitle = computed(() => {
   if (isFinished.value) {
     return 'Świetna robota!';
   }
-  if (currentStep.value?.kind !== 'work' && upcomingStep.value) {
-    return `Następne: ${exerciseName(upcomingStep.value.exerciseIndex)}`;
+  return phase.value === 'work' ? exerciseName(currentExerciseIndex.value) : '';
+});
+
+const segments = computed(() =>
+  timeline.value.map((_, index) => {
+    if (isFinished.value || index < stepIndex.value) {
+      return 1;
+    }
+    return index === stepIndex.value ? 1 - progress.value : 0;
+  }),
+);
+
+const toggleLabel = computed(() => {
+  if (isFinished.value) {
+    return 'Od nowa';
   }
-  return exerciseName(currentExerciseIndex.value);
+  return isRunning.value ? 'Pauza' : 'Start';
 });
 
 const toggle = () => {
@@ -120,98 +140,161 @@ const toggle = () => {
     start();
   }
 };
-
-const RING_RADIUS = 120;
-const circumference = 2 * Math.PI * RING_RADIUS;
-const dashOffset = computed(() => {
-  return circumference - progress.value * circumference;
-});
 </script>
 
 <template>
-  <div class="timer-container" v-if="!loadError">
-    <div class="top-nav">
-      <button class="btn-back" @click="backToConfigurator">← Wróć do konfiguratora</button>
-    </div>
-    <header class="timer-header">
-      <span v-if="workout.title.trim()" class="badge">{{ workout.title }}</span>
-      <h2>Seria {{ currentSet }} / {{ workout.sets }}</h2>
-      <p v-if="!isFinished" class="total-left">Pozostało {{ totalTimeLeft }}</p>
-    </header>
-
-    <!-- Główny okrągły licznik -->
-    <div class="circle-timer" :class="isFinished ? 'finished' : currentPhase">
-      <svg class="progress-ring" width="260" height="260" viewBox="0 0 260 260" aria-hidden="true">
-        <circle
-          class="progress-ring__circle"
-          stroke-width="10"
-          stroke="currentColor"
-          fill="transparent"
-          :r="RING_RADIUS"
-          cx="130"
-          cy="130"
-          :stroke-dasharray="circumference"
-          :style="{ strokeDashoffset: dashOffset }"
-        />
-      </svg>
-      <div class="timer-content">
-        <span class="phase-label" aria-live="polite">{{ currentPhaseText }}</span>
-        <span class="time-left">{{ isFinished ? '✓' : `${secondsLeft}s` }}</span>
-        <span class="exercise-name-current">{{ exerciseLine }}</span>
-      </div>
-    </div>
-
-    <!-- Przyciski sterujące -->
-    <div class="timer-controls">
-      <button
-        class="btn-secondary btn-skip"
-        :disabled="!canSkipBack"
-        aria-label="Poprzedni krok"
-        title="Poprzedni krok"
-        @click="skipBack"
-      >
-        &#x23EE;&#xFE0E;
-      </button>
-      <button class="btn-primary" @click="toggle">
-        {{ isFinished ? 'Od nowa' : isRunning ? 'Pauza' : 'Start' }}
-      </button>
-      <button class="btn-secondary" @click="reset">Reset</button>
-      <button
-        class="btn-secondary btn-skip"
-        :disabled="!canSkipForward"
-        aria-label="Następny krok"
-        title="Następny krok"
-        @click="skipForward"
-      >
-        &#x23ED;&#xFE0E;
-      </button>
-    </div>
-
-    <!-- Lista wszystkich ćwiczeń i odpoczynków -->
-    <div class="card playlist-card">
-      <h3>Harmonogram treningu</h3>
-      <div class="exercises-list">
-        <div
-          v-for="(ex, index) in workout.exercises"
-          :key="index"
-          class="playlist-item"
-          :class="{ active: !isFinished && index === currentExerciseIndex }"
-        >
-          <div class="item-info">
-            <span class="item-number">{{ index + 1 }}</span>
-            <span class="item-name">{{ exerciseName(index) }}</span>
-          </div>
-          <div class="item-durations">
-            <span class="badge-work">Praca: {{ ex.workoutDuration }}s</span>
-            <span class="badge-rest">Odpoczynek: {{ ex.restDuration }}s</span>
-          </div>
+  <div v-if="!loadError" class="timer" :data-phase="phase">
+    <div class="timer__inner">
+      <header class="timer-header">
+        <div class="timer-topbar">
+          <button
+            type="button"
+            class="icon-button timer-chip btn-back"
+            aria-label="Wróć do konfiguratora"
+            @click="backToConfigurator"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          <span v-if="workout.title.trim()" class="badge timer-title">{{ workout.title }}</span>
+          <button
+            type="button"
+            class="icon-button timer-chip"
+            aria-label="Zacznij od początku"
+            title="Zacznij od początku"
+            @click="reset"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"></path>
+              <polyline points="3 3.5 3.5 8.5 8.5 8"></polyline>
+            </svg>
+          </button>
         </div>
+        <StepStrip v-if="theme.showStepStrip" :segments="segments" class="timer-strip" />
+        <div class="timer-meta">
+          <h2>Seria {{ currentSet }} / {{ workout.sets }}</h2>
+          <p v-if="!isFinished" class="total-left">Pozostało {{ totalTimeLeft }}</p>
+        </div>
+      </header>
+
+      <!-- Główny okrągły licznik -->
+      <div class="timer-face">
+        <component
+          :is="theme.timerFace"
+          :phase-label="PHASE_LABELS[phase]"
+          :seconds="secondsLeft"
+          :title="faceTitle"
+          :progress="progress"
+          :is-finished="isFinished"
+        />
       </div>
+
+      <div v-if="!isFinished && upcomingStep" class="next-card">
+        <div class="next-card__text">
+          <span class="next-card__label">Następne</span>
+          <span class="next-card__name">{{ stepLabel(upcomingStep) }}</span>
+        </div>
+        <span class="next-card__duration">{{ upcomingStep.duration }} s</span>
+      </div>
+
+      <!-- Przyciski sterujące -->
+      <div class="timer-controls">
+        <button
+          type="button"
+          class="timer-skip"
+          :disabled="!canSkipBack"
+          aria-label="Poprzedni krok"
+          title="Poprzedni krok"
+          @click="skipBack"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M17 6.5v11a1 1 0 0 1-1.6.8L8 12.8a1 1 0 0 1 0-1.6l7.4-5.5a1 1 0 0 1 1.6.8z"
+            ></path>
+            <rect x="5" y="5.5" width="2.5" height="13" rx="1.25"></rect>
+          </svg>
+        </button>
+        <button type="button" class="btn-primary timer-play" @click="toggle">
+          <svg
+            v-if="isFinished"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"></path>
+            <polyline points="3 3.5 3.5 8.5 8.5 8"></polyline>
+          </svg>
+          <svg v-else-if="isRunning" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" rx="1.5"></rect>
+            <rect x="14" y="5" width="4" height="14" rx="1.5"></rect>
+          </svg>
+          <svg v-else aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M8 5.5v13a1 1 0 0 0 1.5.87l10.5-6.5a1 1 0 0 0 0-1.74L9.5 4.63A1 1 0 0 0 8 5.5z"
+            ></path>
+          </svg>
+          <span class="sr-only">{{ toggleLabel }}</span>
+        </button>
+        <button
+          type="button"
+          class="timer-skip"
+          :disabled="!canSkipForward"
+          aria-label="Następny krok"
+          title="Następny krok"
+          @click="skipForward"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M7 6.5v11a1 1 0 0 0 1.6.8l7.4-5.5a1 1 0 0 0 0-1.6L8.6 5.7A1 1 0 0 0 7 6.5z"
+            ></path>
+            <rect x="16.5" y="5.5" width="2.5" height="13" rx="1.25"></rect>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Lista wszystkich ćwiczeń i odpoczynków -->
+      <section class="playlist-card">
+        <h3>Harmonogram treningu</h3>
+        <ol class="exercises-list">
+          <li
+            v-for="(ex, index) in workout.exercises"
+            :key="index"
+            class="playlist-item"
+            :class="{ active: !isFinished && index === currentExerciseIndex }"
+          >
+            <span class="item-number">{{ String(index + 1).padStart(2, '0') }}</span>
+            <span class="item-name">{{ exerciseName(index) }}</span>
+            <span class="item-durations">{{ ex.workoutDuration }} s / {{ ex.restDuration }} s</span>
+          </li>
+        </ol>
+      </section>
     </div>
   </div>
 
-  <div v-else class="timer-container load-error" role="alert">
-    <h2>Nie udało się wczytać treningu</h2>
+  <div v-else class="load-error" role="alert">
+    <h2 class="display">Nie udało się wczytać treningu</h2>
     <p>
       {{
         loadError === 'empty'
@@ -224,233 +307,253 @@ const dashOffset = computed(() => {
 </template>
 
 <style scoped>
-.timer-container {
-  max-width: 600px;
+.timer {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--screen-bg);
+  color: var(--screen-fg);
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
+}
+
+.timer__inner {
+  max-width: 520px;
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
-  color: var(--text);
+  padding: 16px 20px 32px;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-.timer-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.timer-header .badge {
-  margin-bottom: 0.5rem;
-}
-
-.timer-header h2 {
-  font-size: 1.5rem;
-  margin: 0;
-  color: var(--heading);
-}
-
-.total-left {
-  margin: 0.4rem 0 0;
-  font-size: 0.95rem;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Okrągły licznik */
-.circle-timer {
-  position: relative;
-  width: 260px;
-  height: 260px;
+.timer-topbar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 2rem;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.progress-ring {
-  transform: rotate(90deg) scaleX(-1);
+.timer-chip {
+  background: var(--screen-chip);
+  color: var(--screen-fg);
 }
 
-.progress-ring__circle {
-  stroke: currentColor;
+.timer-chip:hover {
+  color: var(--screen-fg);
 }
 
-/* Kolory faz */
-.circle-timer.work {
-  color: var(--accent);
-  /* Pomarańczowy */
-}
-
-.circle-timer.rest {
-  color: var(--rest);
-  /* Zielony */
-}
-
-.timer-content {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.phase-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.2rem;
-}
-
-.circle-timer.work .phase-label {
-  color: var(--accent);
-}
-
-.circle-timer.rest .phase-label {
-  color: var(--rest);
-}
-
-.circle-timer.finished,
-.circle-timer.finished .phase-label {
-  color: var(--accent);
-}
-
-.time-left {
-  font-size: 4rem;
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  color: var(--heading);
-}
-
-.exercise-name-current {
-  font-size: 0.9rem;
-  color: var(--text-dim);
-  margin-top: 0.4rem;
-  max-width: 180px;
-  white-space: nowrap;
+.timer-title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--screen-fg);
+  letter-spacing: 0.08em;
+}
+
+.timer-strip {
+  margin-top: 18px;
+}
+
+.timer-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--screen-dim);
+}
+
+.timer-meta h2,
+.total-left {
+  margin: 0;
+  font: inherit;
+}
+
+.timer-face {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 360px;
+  padding: 24px 0;
+}
+
+.next-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-button);
+  background: var(--screen-chip);
+}
+
+.next-card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.next-card__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--screen-dim);
+}
+
+.next-card__name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.next-card__duration {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Sterowanie */
 .timer-controls {
   display: flex;
-  gap: 0.75rem;
-  width: 100%;
-  max-width: 420px;
-  margin-bottom: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 26px;
 }
 
-.timer-controls button {
-  flex: 1;
-  padding: 0.85rem;
-  font-size: 1rem;
-  border-radius: 50px;
-  font-weight: 600;
+.timer-skip {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--screen-chip);
+  color: var(--screen-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.timer-controls .btn-skip {
-  flex: 0 0 3.25rem;
-  padding: 0.85rem 0;
+.timer-skip svg {
+  width: 26px;
+  height: 26px;
+}
+
+.timer-skip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.timer-skip:focus-visible,
+.timer-play:focus-visible,
+.timer-chip:focus-visible {
+  outline: 3px solid var(--screen-fg);
+  outline-offset: 3px;
+}
+
+.timer-play {
+  width: 96px;
+  height: 96px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--screen-play-bg);
+  color: var(--screen-play-fg);
+}
+
+.timer-play:hover:not(:disabled) {
+  color: var(--screen-play-fg);
+}
+
+.timer-play svg {
+  width: 38px;
+  height: 38px;
 }
 
 /* Harmonogram / Lista */
 .playlist-card {
-  width: 100%;
-  padding: 1.5rem;
-  box-sizing: border-box;
+  margin-top: 40px;
 }
 
 .playlist-card h3 {
-  font-size: 1.1rem;
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: var(--heading);
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--screen-dim);
 }
 
 .exercises-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .playlist-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.85rem 1rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.02);
-  transition:
-    background-color 0.2s,
-    border-color 0.2s;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--screen-chip);
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
 }
 
 /* Podświetlenie aktywnego ćwiczenia */
 .playlist-item.active {
-  background: rgba(255, 109, 0, 0.1);
-  border-color: rgba(255, 109, 0, 0.4);
-}
-
-.item-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  border-color: var(--screen-fg);
 }
 
 .item-number {
-  font-size: 0.85rem;
-  color: var(--text-dim);
-  font-weight: bold;
-}
-
-.playlist-item.active .item-number {
-  color: var(--accent);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.1rem;
 }
 
 .item-name {
-  font-weight: 500;
-  color: var(--text);
-}
-
-.playlist-item.active .item-name {
-  color: var(--heading);
-  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-durations {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.75rem;
-}
-
-.badge-work {
-  background: var(--accent-soft);
-  color: var(--accent);
-  padding: 0.2rem 0.5rem;
-  border-radius: 6px;
-}
-
-.badge-rest {
-  background: var(--rest-soft);
-  color: var(--rest);
-  padding: 0.2rem 0.5rem;
-  border-radius: 6px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--screen-dim);
 }
 
 .load-error {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 18vh 20px 40px;
   text-align: center;
-  padding-top: 15vh;
 }
 
 .load-error h2 {
-  margin: 0 0 0.75rem;
-  color: var(--heading);
+  margin: 0 0 12px;
+  font-size: 2rem;
 }
 
 .load-error p {
-  margin: 0 0 2rem;
-  color: var(--text-dim);
+  margin: 0 0 28px;
+  color: var(--color-text-dim);
 }
 </style>

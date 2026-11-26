@@ -1,0 +1,76 @@
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource/barlow-condensed/700.css';
+@import '@fontsource/barlow-condensed/800.css';
+
+:root[data-theme='pulse'] {
+  color-scheme: dark;
+
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  --display-case: uppercase;
+
+  --color-bg: #0b0b0c;
+  --color-surface: #161618;
+  --color-surface-raised: #232326;
+  --color-border: #26262a;
+  --color-border-strong: #3a3a40;
+  --color-text: #f4f4f5;
+  --color-text-dim: #a1a1aa;
+  --color-heading: #f4f4f5;
+  --color-placeholder: #71717a;
+
+  --color-accent: #ff6a1a;
+  --color-accent-hover: #ff8a47;
+  --color-on-accent: #0b0b0c;
+  --color-accent-soft: #2a1608;
+  --color-highlight-border: #3a2414;
+
+  --color-work: #ff6a1a;
+  --color-rest: #5b9bff;
+  --color-danger: #ff7a6b;
+  --color-danger-soft: rgba(255, 122, 107, 0.14);
+
+  --radius-card: 20px;
+  --radius-control: 14px;
+  --radius-button: 18px;
+}
+
+:root[data-theme='pulse'] .timer {
+  --screen-bg: #0b0b0c;
+  --screen-fg: #f4f4f5;
+  --screen-dim: #a1a1aa;
+  --screen-chip: rgba(255, 255, 255, 0.08);
+  --screen-track: rgba(255, 255, 255, 0.16);
+  --screen-play-bg: #ff6a1a;
+  --screen-play-fg: #0b0b0c;
+}
+
+:root[data-theme='pulse'] .timer[data-phase='work'] {
+  --screen-bg: #ff6a1a;
+  --screen-fg: #0b0b0c;
+  --screen-dim: #3a1a08;
+  --screen-chip: rgba(11, 11, 12, 0.12);
+  --screen-track: rgba(11, 11, 12, 0.22);
+  --screen-play-bg: #0b0b0c;
+  --screen-play-fg: #ff6a1a;
+}
+
+:root[data-theme='pulse'] .timer[data-phase='rest'] {
+  --screen-bg: #1d4ed8;
+  --screen-fg: #ffffff;
+  --screen-dim: #d6e2ff;
+  --screen-chip: rgba(255, 255, 255, 0.16);
+  --screen-track: rgba(255, 255, 255, 0.28);
+  --screen-play-bg: #ffffff;
+  --screen-play-fg: #1d4ed8;
+}
+
+:root[data-theme='pulse'] .timer[data-phase='setBreak'] {
+  --screen-bg: #1e3a8a;
+  --screen-fg: #ffffff;
+  --screen-dim: #c7d2fe;
+  --screen-chip: rgba(255, 255, 255, 0.14);
+  --screen-track: rgba(255, 255, 255, 0.26);
+  --screen-play-bg: #ffffff;
+  --screen-play-fg: #1e3a8a;
+}
