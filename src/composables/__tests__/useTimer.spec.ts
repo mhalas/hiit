@@ -65,7 +65,9 @@ describe('useTimer – timeline', () => {
     expect(state(timer)).toEqual({ phase: 'work', index: 1, set: 1, secondsLeft: 2 });
 
     advance(2000);
-    expect(state(timer)).toEqual({ phase: 'rest', index: -1, set: 1, secondsLeft: 4 });
+    expect(state(timer)).toEqual({ phase: 'rest', index: null, set: 1, secondsLeft: 4 });
+    expect(timer.currentStep.value?.kind).toBe('setBreak');
+    expect(timer.currentExercise.value).toBeNull();
 
     advance(4000);
     expect(state(timer)).toEqual({ phase: 'work', index: 0, set: 2, secondsLeft: 3 });
@@ -175,7 +177,7 @@ describe('useTimer – pause and clock', () => {
     jumpClock(9000);
     setVisibility('visible');
 
-    expect(state(timer)).toEqual({ phase: 'rest', index: -1, set: 1, secondsLeft: 1 });
+    expect(state(timer)).toEqual({ phase: 'rest', index: null, set: 1, secondsLeft: 1 });
     expect(countSounds('change')).toBe(1);
   });
 
@@ -291,5 +293,133 @@ describe('useTimer – cleanup', () => {
     jumpClock(10_000);
     setVisibility('visible');
     expect(state(timer)).toEqual(before);
+  });
+});
+
+describe('useTimer – upcoming step and total time', () => {
+  it('knows the next step, and has none on the last one', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+
+    expect(timer.upcomingStep.value).toMatchObject({ kind: 'rest', exerciseIndex: 0 });
+
+    timer.start();
+    advance(5000);
+    expect(timer.upcomingStep.value).toMatchObject({ kind: 'setBreak' });
+
+    advance(2000);
+    expect(timer.upcomingStep.value).toMatchObject({ kind: 'work', exerciseIndex: 0, set: 2 });
+
+    advance(9000);
+    expect(timer.currentStep.value).toMatchObject({ kind: 'work', exerciseIndex: 1, set: 2 });
+    expect(timer.upcomingStep.value).toBeNull();
+  });
+
+  it('counts down the time left for the whole workout', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+    expect(timer.totalRemainingMsAt(now())).toBe(18_000);
+
+    timer.start();
+    advance(4000);
+    expect(timer.totalRemainingMsAt(now())).toBe(14_000);
+    expect(timer.totalRemainingMsAt(now() + 500)).toBe(13_500);
+
+    timer.pause();
+    advance(3000);
+    expect(timer.totalRemainingMsAt(now())).toBe(14_000);
+  });
+
+  it('reports no time left once finished', () => {
+    const { timer } = createTimer(workoutOf({ exercises: [exercise('x', 2, 0)] }));
+    timer.start();
+    runUntilFinished(timer);
+
+    expect(timer.totalRemainingMsAt(now())).toBe(0);
+  });
+});
+
+describe('useTimer – skip forward and back', () => {
+  it('jumps to the next step with its full duration, while paused', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+
+    timer.skipForward();
+
+    expect(state(timer)).toEqual({ phase: 'rest', index: 0, set: 1, secondsLeft: 2 });
+    expect(timer.remainingMsAt(now())).toBe(2000);
+    expect(timer.isRunning.value).toBe(false);
+    expect(countSounds('change')).toBe(0);
+  });
+
+  it('keeps running after a skip and plays the change sound', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+    timer.start();
+    advance(1000);
+
+    timer.skipForward();
+    expect(state(timer)).toEqual({ phase: 'rest', index: 0, set: 1, secondsLeft: 2 });
+    expect(countSounds('change')).toBe(1);
+
+    advance(2000);
+    expect(state(timer)).toEqual({ phase: 'work', index: 1, set: 1, secondsLeft: 2 });
+  });
+
+  it('finishes the workout when skipping past the last step', () => {
+    const { timer } = createTimer(workoutOf({ exercises: [exercise('x', 30, 0)] }));
+    timer.start();
+
+    timer.skipForward();
+
+    expect(timer.isFinished.value).toBe(true);
+    expect(timer.isRunning.value).toBe(false);
+    expect(timer.canSkipForward.value).toBe(false);
+  });
+
+  it('goes back to the start of the previous step', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+    timer.start();
+    advance(4000);
+
+    timer.skipBack();
+
+    expect(state(timer)).toEqual({ phase: 'work', index: 0, set: 1, secondsLeft: 3 });
+    expect(timer.isRunning.value).toBe(true);
+
+    advance(3000);
+    expect(state(timer)).toEqual({ phase: 'rest', index: 0, set: 1, secondsLeft: 2 });
+  });
+
+  it('cannot go back from the first step', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+    expect(timer.canSkipBack.value).toBe(false);
+
+    timer.skipBack();
+
+    expect(state(timer)).toEqual({ phase: 'work', index: 0, set: 1, secondsLeft: 3 });
+  });
+
+  it('returns from the finish screen to the last step, paused', () => {
+    const { timer } = createTimer(twoExercisesTwoSets);
+    timer.start();
+    runUntilFinished(timer);
+
+    timer.skipBack();
+
+    expect(timer.isFinished.value).toBe(false);
+    expect(timer.isRunning.value).toBe(false);
+    expect(state(timer)).toEqual({ phase: 'work', index: 1, set: 2, secondsLeft: 2 });
+
+    timer.start();
+    advance(2000);
+    expect(timer.isFinished.value).toBe(true);
+  });
+
+  it('does nothing without exercises', () => {
+    const { timer } = createTimer(workoutOf({ exercises: [] }));
+
+    timer.skipForward();
+    timer.skipBack();
+
+    expect(timer.canSkipForward.value).toBe(false);
+    expect(timer.canSkipBack.value).toBe(false);
+    expect(timer.isFinished.value).toBe(false);
   });
 });

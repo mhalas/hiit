@@ -1,10 +1,3 @@
-<script setup lang="ts">
-import { useRouter } from 'vue-router';
-
-const router = useRouter();
-const goToConfigurator = () => router.push('/configurator');
-</script>
-
 <template>
   <div class="home-container">
     <!-- Nagłówek główny -->
@@ -16,14 +9,14 @@ const goToConfigurator = () => router.push('/configurator');
         sposób.
       </p>
 
-      <button class="btn-primary" @click="goToConfigurator()">Stwórz własny trening</button>
+      <RouterLink to="/configurator" class="btn-primary">Stwórz własny trening</RouterLink>
     </header>
 
     <div class="divider"></div>
 
     <!-- Sekcja informacyjna -->
     <section class="info-section">
-      <div class="info-card">
+      <div class="card info-card">
         <h2>🔥 Czym jest HIIT?</h2>
         <p>
           <strong>High-Intensity Interval Training</strong> to metoda polegająca na przeplataniu
@@ -32,7 +25,7 @@ const goToConfigurator = () => router.push('/configurator');
         </p>
       </div>
 
-      <div class="info-card">
+      <div class="card info-card">
         <h2>⚡ Jak stworzyć swój plan?</h2>
         <ol class="steps-list">
           <li>
@@ -49,7 +42,7 @@ const goToConfigurator = () => router.push('/configurator');
         </ol>
       </div>
 
-      <div class="info-card highlight-card">
+      <div class="card info-card highlight-card">
         <h2>🔖 Jak zapisać plan na stałe?</h2>
         <p>
           Nasza aplikacja nie wymaga zakładania konta. Gdy tylko skonfigurujesz swój idealny
@@ -67,7 +60,7 @@ const goToConfigurator = () => router.push('/configurator');
     <!-- Stopka -->
     <footer class="footer">
       <p>Gotowy na trening? Czas zacząć.</p>
-      <button class="btn-secondary" @click="goToConfigurator()">Przejdź do konfiguratora</button>
+      <RouterLink to="/configurator" class="btn-secondary">Przejdź do konfiguratora</RouterLink>
     </footer>
   </div>
 </template>
@@ -77,25 +70,12 @@ const goToConfigurator = () => router.push('/configurator');
   max-width: 800px;
   margin: 0 auto;
   padding: 4rem 1.5rem;
-  color: var(--text, #e0e0e0);
+  color: var(--text);
 }
 
 .hero {
   text-align: center;
   margin-bottom: 3rem;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(255, 109, 0, 0.15);
-  color: var(--accent, #ff6d00);
-  border-radius: 50px;
-  margin-bottom: 1rem;
 }
 
 .hero h1 {
@@ -107,15 +87,12 @@ const goToConfigurator = () => router.push('/configurator');
 
 .subtitle {
   font-size: 1.2rem;
-  color: var(--text-dim, #a0a0a0);
   max-width: 600px;
   margin: 0 auto 2rem auto;
   line-height: 1.5;
 }
 
 .divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
   margin: 3rem 0;
 }
 
@@ -126,21 +103,18 @@ const goToConfigurator = () => router.push('/configurator');
 }
 
 .info-card {
-  background: var(--card, #1e1e1e);
   padding: 2rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .info-card h2 {
   font-size: 1.4rem;
   margin-top: 0;
   margin-bottom: 1rem;
-  color: #fff;
+  color: var(--heading);
 }
 
 .info-card p {
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   line-height: 1.6;
   margin: 0;
 }
@@ -148,7 +122,7 @@ const goToConfigurator = () => router.push('/configurator');
 .steps-list {
   margin: 0;
   padding-left: 1.25rem;
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   line-height: 1.6;
 }
 
@@ -161,7 +135,7 @@ const goToConfigurator = () => router.push('/configurator');
 }
 
 .steps-list strong {
-  color: var(--text, #e0e0e0);
+  color: var(--text);
 }
 
 .highlight-card {
@@ -169,8 +143,8 @@ const goToConfigurator = () => router.push('/configurator');
   /* background: linear-gradient(135deg, rgba(30, 30, 30, 1) 0%, rgba(45, 25, 10, 0.4) 100%); */
 }
 
-.tip {
-  margin-top: 1rem !important;
+.info-card .tip {
+  margin-top: 1rem;
   font-size: 0.95rem;
 }
 
@@ -180,7 +154,7 @@ kbd {
   border-radius: 4px;
   font-family: monospace;
   font-size: 0.9em;
-  color: #fff;
+  color: var(--heading);
 }
 
 .footer {
@@ -190,7 +164,7 @@ kbd {
 }
 
 .footer p {
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   margin-bottom: 1.5rem;
   font-size: 1.1rem;
 }

@@ -20,6 +20,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
 }
 
@@ -31,7 +32,7 @@
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   padding: 1.5rem 2rem;
   text-align: center;
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   font-size: 0.9rem;
   display: flex;
   flex-direction: column;
@@ -45,13 +46,13 @@
 }
 
 .footer-links a {
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   text-decoration: none;
   transition: color 0.2s;
 }
 
 .footer-links a:hover {
-  color: var(--accent, #ff6d00);
+  color: var(--accent);
 }
 
 @media (min-width: 640px) {

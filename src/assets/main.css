@@ -2,8 +2,16 @@
   --bg: #121212;
   --card: #1e1e1e;
   --accent: #ff6d00;
+  --accent-soft: rgba(255, 109, 0, 0.15);
+  --rest: #10b981;
+  --rest-soft: rgba(16, 185, 129, 0.15);
+  --danger: #ff4b4b;
+  --danger-soft: rgba(255, 75, 75, 0.15);
   --text: #e0e0e0;
   --text-dim: #a0a0a0;
+  --heading: #fff;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-faint: rgba(255, 255, 255, 0.04);
 }
 
 html,
@@ -12,15 +20,52 @@ body {
   color: var(--text);
   margin: 0;
   padding: 0;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 50px;
+  margin-bottom: 1rem;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 20px;
+  border: 1px solid var(--border-faint);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 2rem 0;
+}
+
+.subtitle {
+  color: var(--text-dim);
 }
 
 .btn-primary,
 .btn-secondary {
+  display: inline-block;
   padding: 0.85rem 2rem;
   font: inherit;
   font-size: 1rem;
   font-weight: 600;
+  text-align: center;
+  text-decoration: none;
   border-radius: 50px;
   cursor: pointer;
   transition:
@@ -32,7 +77,7 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--heading);
   border: none;
 }
 
@@ -58,6 +103,13 @@ body {
   cursor: not-allowed;
 }
 
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible,
+.btn-back:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .top-nav {
   width: 100%;
   max-width: 600px;
@@ -68,19 +120,23 @@ body {
 
 .btn-back {
   background: rgba(255, 255, 255, 0.05);
-  color: var(--text-dim, #a0a0a0);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
   padding: 0.4rem 1rem;
   border-radius: 50px;
   font-size: 0.85rem;
   font-weight: 500;
   text-decoration: none;
-  transition: all 0.2s ease;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
   margin-bottom: 0.25rem;
 }
 
 .btn-back:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--heading);
   border-color: rgba(255, 255, 255, 0.2);
 }

@@ -1,49 +1,65 @@
 import { computed, onScopeDispose, ref, type Ref } from 'vue';
+import type { TimerPhase } from '@/types/timer';
 import type { Workout } from '@/types/workout';
+import { buildTimeline } from '@/utils/timeline';
 import { useSound } from './useSound';
 import { useWakeLock } from './useWakeLock';
 
-export type TimerPhase = 'work' | 'rest';
-
-const BETWEEN_SETS = -1;
 const TICK_MS = 200;
 
 export function useTimer(workout: Ref<Workout>) {
   const { unlock: unlockAudio, playBeep, playChangeSound, playFinishSound } = useSound();
   const wakeLock = useWakeLock();
 
-  const firstWorkDuration = () => workout.value.exercises[0]?.workoutDuration ?? 0;
+  const timeline = computed(() => buildTimeline(workout.value));
+  const stepDurationMs = (index: number) => (timeline.value[index]?.duration ?? 0) * 1000;
 
-  const currentSet = ref(1);
-  const currentExerciseIndex = ref(0);
-  const currentPhase = ref<TimerPhase>('work');
-  const secondsLeft = ref(firstWorkDuration());
+  const stepIndex = ref(0);
+  const secondsLeft = ref(stepDurationMs(0) / 1000);
   const isRunning = ref(false);
   const isFinished = ref(false);
 
   const phaseEndsAt = ref(0);
-  const pausedRemainingMs = ref(firstWorkDuration() * 1000);
+  const pausedRemainingMs = ref(stepDurationMs(0));
 
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
+  const currentStep = computed(() => timeline.value[stepIndex.value] ?? null);
+  const currentSet = computed(() => currentStep.value?.set ?? 1);
+  const currentExerciseIndex = computed(() => currentStep.value?.exerciseIndex ?? null);
+  const currentPhase = computed<TimerPhase>(() =>
+    currentStep.value === null || currentStep.value.kind === 'work' ? 'work' : 'rest',
+  );
   const currentExercise = computed(() => {
-    return workout.value.exercises[currentExerciseIndex.value] ?? null;
+    const index = currentExerciseIndex.value;
+    return index === null ? null : (workout.value.exercises[index] ?? null);
   });
 
-  const isLastExercise = () => currentExerciseIndex.value >= workout.value.exercises.length - 1;
-  const isLastSet = () => currentSet.value >= workout.value.sets;
+  const upcomingStep = computed(() =>
+    isFinished.value ? null : (timeline.value[stepIndex.value + 1] ?? null),
+  );
 
-  const enterPhase = (phase: TimerPhase, seconds: number, startedAt: number) => {
-    currentPhase.value = phase;
-    secondsLeft.value = seconds;
-    phaseEndsAt.value = startedAt + seconds * 1000;
-    pausedRemainingMs.value = seconds * 1000;
-  };
+  const remainingAfterStepMs = computed(() => {
+    const totals: number[] = [];
+    let sum = 0;
+    for (let i = timeline.value.length - 1; i >= 0; i--) {
+      totals[i] = sum;
+      sum += stepDurationMs(i);
+    }
+    return totals;
+  });
 
-  const startNextSet = (startedAt: number) => {
-    currentSet.value++;
-    currentExerciseIndex.value = 0;
-    enterPhase('work', firstWorkDuration(), startedAt);
+  const canSkipBack = computed(
+    () => timeline.value.length > 0 && (isFinished.value || stepIndex.value > 0),
+  );
+  const canSkipForward = computed(() => timeline.value.length > 0 && !isFinished.value);
+
+  const enterStep = (index: number, startedAt: number) => {
+    stepIndex.value = index;
+    const durationMs = stepDurationMs(index);
+    secondsLeft.value = durationMs / 1000;
+    phaseEndsAt.value = startedAt + durationMs;
+    pausedRemainingMs.value = durationMs;
   };
 
   const finish = () => {
@@ -54,37 +70,11 @@ export function useTimer(workout: Ref<Workout>) {
     playFinishSound();
   };
 
-  const moveToNextExerciseOrSet = (startedAt: number) => {
-    if (!isLastExercise()) {
-      currentExerciseIndex.value++;
-      enterPhase('work', currentExercise.value?.workoutDuration ?? 0, startedAt);
-    } else if (isLastSet()) {
+  const goToNextStep = (startedAt: number) => {
+    if (stepIndex.value >= timeline.value.length - 1) {
       finish();
-    } else if (workout.value.restBetweenSets > 0) {
-      currentExerciseIndex.value = BETWEEN_SETS;
-      enterPhase('rest', workout.value.restBetweenSets, startedAt);
     } else {
-      startNextSet(startedAt);
-    }
-  };
-
-  const nextStep = (startedAt: number) => {
-    if (currentExerciseIndex.value === BETWEEN_SETS) {
-      startNextSet(startedAt);
-      return;
-    }
-
-    const ex = currentExercise.value;
-    if (!ex) {
-      finish();
-      return;
-    }
-
-    const isLastExerciseOfWorkout = isLastExercise() && isLastSet();
-    if (currentPhase.value === 'work' && ex.restDuration > 0 && !isLastExerciseOfWorkout) {
-      enterPhase('rest', ex.restDuration, startedAt);
-    } else {
-      moveToNextExerciseOrSet(startedAt);
+      enterStep(stepIndex.value + 1, startedAt);
     }
   };
 
@@ -96,7 +86,7 @@ export function useTimer(workout: Ref<Workout>) {
     const now = performance.now();
     let phaseChanged = false;
     while (isRunning.value && now >= phaseEndsAt.value) {
-      nextStep(phaseEndsAt.value);
+      goToNextStep(phaseEndsAt.value);
       phaseChanged = true;
     }
 
@@ -124,8 +114,44 @@ export function useTimer(workout: Ref<Workout>) {
     return isRunning.value ? Math.max(0, phaseEndsAt.value - now) : pausedRemainingMs.value;
   };
 
+  const totalRemainingMsAt = (now: number) => {
+    if (isFinished.value) {
+      return 0;
+    }
+    return remainingMsAt(now) + (remainingAfterStepMs.value[stepIndex.value] ?? 0);
+  };
+
+  const skipForward = () => {
+    if (!canSkipForward.value) {
+      return;
+    }
+    if (stepIndex.value >= timeline.value.length - 1) {
+      finish();
+      return;
+    }
+    enterStep(stepIndex.value + 1, performance.now());
+    if (isRunning.value) {
+      playChangeSound();
+    }
+  };
+
+  const skipBack = () => {
+    if (!canSkipBack.value) {
+      return;
+    }
+    if (isFinished.value) {
+      isFinished.value = false;
+      enterStep(timeline.value.length - 1, performance.now());
+      return;
+    }
+    enterStep(stepIndex.value - 1, performance.now());
+    if (isRunning.value) {
+      playChangeSound();
+    }
+  };
+
   const start = () => {
-    if (isRunning.value || isFinished.value || workout.value.exercises.length === 0) {
+    if (isRunning.value || isFinished.value || timeline.value.length === 0) {
       return;
     }
 
@@ -152,11 +178,7 @@ export function useTimer(workout: Ref<Workout>) {
   const reset = () => {
     pause();
     isFinished.value = false;
-    currentSet.value = 1;
-    currentExerciseIndex.value = 0;
-    currentPhase.value = 'work';
-    secondsLeft.value = firstWorkDuration();
-    pausedRemainingMs.value = firstWorkDuration() * 1000;
+    enterStep(0, performance.now());
   };
 
   const onVisibilityChange = () => {
@@ -174,15 +196,22 @@ export function useTimer(workout: Ref<Workout>) {
 
   return {
     secondsLeft,
+    currentStep,
     currentSet,
     currentPhase,
     currentExercise,
     currentExerciseIndex,
+    upcomingStep,
     isRunning,
     isFinished,
+    canSkipBack,
+    canSkipForward,
     remainingMsAt,
+    totalRemainingMsAt,
     start,
     pause,
     reset,
+    skipForward,
+    skipBack,
   };
 }

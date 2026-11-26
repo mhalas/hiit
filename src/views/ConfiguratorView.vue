@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
+import type { Exercise } from '@/types/exercise';
 import type { Workout } from '@/types/workout';
 import { useRoute, useRouter } from 'vue-router';
-import { useWorkoutParser } from '@/composables/useWorkoutParser';
+import { decodeWorkout, encodeWorkout } from '@/utils/encoding';
 import { createEmptyWorkout, isValidInt, isWorkoutValid, sanitizeWorkout } from '@/utils/workout';
 
 const route = useRoute();
 const router = useRouter();
-const { encodeWorkout, decodeWorkout } = useWorkoutParser();
 
 const rawData = route.query.data;
 const decoded = decodeWorkout(rawData);
@@ -15,6 +15,20 @@ const loadError = ref(rawData !== undefined && decoded === null);
 const workout = ref<Workout>(decoded ?? createEmptyWorkout());
 
 const canStart = computed(() => isWorkoutValid(workout.value));
+
+const uid = useId();
+const rowKeys = new WeakMap<Exercise, number>();
+let nextRowKey = 0;
+const rowKey = (exercise: Exercise) => {
+  let key = rowKeys.get(exercise);
+  if (key === undefined) {
+    key = nextRowKey++;
+    rowKeys.set(exercise, key);
+  }
+  return key;
+};
+const fieldId = (exercise: Exercise, field: string) =>
+  `${uid}-exercise-${rowKey(exercise)}-${field}`;
 
 const URL_SYNC_DELAY_MS = 300;
 let urlSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -87,8 +101,13 @@ const removeExercise = (index: number) => {
     <div class="card main-card" @change="onFieldChange">
       <!-- Nazwa treningu -->
       <div class="input-group">
-        <label>Nazwa treningu</label>
-        <input v-model="workout.title" type="text" placeholder="np. Poranne HIIT Spalanie" />
+        <label :for="`${uid}-title`">Nazwa treningu</label>
+        <input
+          :id="`${uid}-title`"
+          v-model="workout.title"
+          type="text"
+          placeholder="np. Poranne HIIT Spalanie"
+        />
       </div>
 
       <div class="divider"></div>
@@ -96,8 +115,9 @@ const removeExercise = (index: number) => {
       <!-- Ustawienia obwodów (SETS) -->
       <div class="global-settings-grid">
         <div class="input-group">
-          <label>Liczba obwodów (Serie)</label>
+          <label :for="`${uid}-sets`">Liczba obwodów (Serie)</label>
           <input
+            :id="`${uid}-sets`"
             v-model.number="workout.sets"
             type="number"
             min="1"
@@ -107,8 +127,9 @@ const removeExercise = (index: number) => {
         </div>
 
         <div class="input-group">
-          <label>Przerwa między obwodami (s)</label>
+          <label :for="`${uid}-rest-between-sets`">Przerwa między obwodami (s)</label>
           <input
+            :id="`${uid}-rest-between-sets`"
             v-model.number="workout.restBetweenSets"
             type="number"
             min="0"
@@ -131,17 +152,23 @@ const removeExercise = (index: number) => {
           Brak ćwiczeń. Kliknij przycisk powyżej, aby dodać pierwsze zadanie.
         </div>
 
-        <div v-for="(ex, index) in workout.exercises" :key="index" class="exercise-row">
+        <div v-for="(ex, index) in workout.exercises" :key="rowKey(ex)" class="exercise-row">
           <div class="exercise-number">{{ index + 1 }}</div>
 
           <div class="input-group flex-grow">
-            <label>Nazwa</label>
-            <input v-model="ex.name" type="text" placeholder="np. Pompki / Burpees" />
+            <label :for="fieldId(ex, 'name')">Nazwa</label>
+            <input
+              :id="fieldId(ex, 'name')"
+              v-model="ex.name"
+              type="text"
+              placeholder="np. Pompki / Burpees"
+            />
           </div>
 
           <div class="input-group small">
-            <label>Praca (s)</label>
+            <label :for="fieldId(ex, 'work')">Praca (s)</label>
             <input
+              :id="fieldId(ex, 'work')"
               v-model.number="ex.workoutDuration"
               type="number"
               min="1"
@@ -151,8 +178,9 @@ const removeExercise = (index: number) => {
           </div>
 
           <div class="input-group small">
-            <label>Odpoczynek (s)</label>
+            <label :for="fieldId(ex, 'rest')">Odpoczynek (s)</label>
             <input
+              :id="fieldId(ex, 'rest')"
               v-model.number="ex.restDuration"
               type="number"
               min="0"
@@ -161,7 +189,12 @@ const removeExercise = (index: number) => {
             />
           </div>
 
-          <button class="btn-icon-danger" @click="removeExercise(index)" title="Usuń ćwiczenie">
+          <button
+            class="btn-icon-danger"
+            :aria-label="`Usuń ćwiczenie ${index + 1}`"
+            title="Usuń ćwiczenie"
+            @click="removeExercise(index)"
+          >
             ✕
           </button>
         </div>
@@ -184,25 +217,12 @@ const removeExercise = (index: number) => {
   max-width: 700px;
   margin: 0 auto;
   padding: 3rem 1.5rem;
-  color: var(--text, #e0e0e0);
+  color: var(--text);
 }
 
 .config-header {
   text-align: center;
   margin-bottom: 2.5rem;
-}
-
-.badge {
-  display: inline-block;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(255, 109, 0, 0.15);
-  color: var(--accent, #ff6d00);
-  border-radius: 50px;
-  margin-bottom: 1rem;
 }
 
 .config-header h1 {
@@ -213,16 +233,12 @@ const removeExercise = (index: number) => {
 }
 
 .subtitle {
-  color: var(--text-dim, #a0a0a0);
   font-size: 1.1rem;
   margin: 0;
 }
 
-.card {
-  background: var(--card, #1e1e1e);
+.main-card {
   padding: 2.5rem;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .input-group {
@@ -234,29 +250,32 @@ const removeExercise = (index: number) => {
 .input-group label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
 input {
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  color: #fff;
+  color: var(--heading);
+  font: inherit;
   font-size: 1rem;
-  transition: all 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 input:focus {
   outline: none;
-  border-color: var(--accent, #ff6d00);
+  border-color: var(--accent);
   background: rgba(255, 255, 255, 0.06);
 }
 
 input.invalid {
-  border-color: #ff4b4b;
+  border-color: var(--danger);
 }
 
 .alert {
@@ -266,12 +285,6 @@ input.invalid {
   border: 1px solid rgba(255, 75, 75, 0.4);
   background: rgba(255, 75, 75, 0.1);
   color: #ffb4b4;
-}
-
-.divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 2rem 0;
 }
 
 .section-title {
@@ -284,12 +297,12 @@ input.invalid {
 .section-title h2 {
   font-size: 1.25rem;
   margin: 0;
-  color: #fff;
+  color: var(--heading);
 }
 
 .btn-text {
   background: transparent;
-  color: var(--accent, #ff6d00);
+  color: var(--accent);
   font-weight: 600;
   padding: 0.5rem 0;
   border: none;
@@ -304,7 +317,7 @@ input.invalid {
 .empty-state {
   text-align: center;
   padding: 2rem;
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   background: rgba(255, 255, 255, 0.02);
   border-radius: 12px;
   border: 1px dashed rgba(255, 255, 255, 0.08);
@@ -323,7 +336,7 @@ input.invalid {
 
 .exercise-number {
   font-weight: bold;
-  color: var(--text-dim, #a0a0a0);
+  color: var(--text-dim);
   padding-bottom: 0.8rem;
   min-width: 1.5rem;
   text-align: center;
@@ -340,18 +353,21 @@ input.invalid {
 
 .btn-icon-danger {
   background: transparent;
-  color: #a0a0a0;
+  color: var(--text-dim);
   border: none;
   font-size: 1rem;
   padding: 0.85rem;
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
-.btn-icon-danger:hover {
-  background: rgba(255, 75, 75, 0.15);
-  color: #ff4b4b;
+.btn-icon-danger:hover,
+.btn-icon-danger:focus-visible {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .actions {

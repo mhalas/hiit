@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import LZString from 'lz-string';
-import { useWorkoutParser } from '@/composables/useWorkoutParser';
+import { decodeWorkout, encodeWorkout, LINK_FORMAT_VERSION } from '@/utils/encoding';
 import type { Workout } from '@/types/workout';
 
-const { encodeWorkout, decodeWorkout } = useWorkoutParser();
-
 const encodeRaw = (value: unknown) => LZString.compressToEncodedURIComponent(JSON.stringify(value));
+const decodeRaw = (encoded: string): unknown =>
+  JSON.parse(LZString.decompressFromEncodedURIComponent(encoded));
 
 const workout: Workout = {
   title: 'Poranne HIIT – ąęłóźż',
@@ -17,13 +17,26 @@ const workout: Workout = {
   ],
 };
 
-describe('useWorkoutParser', () => {
+describe('encodeWorkout / decodeWorkout', () => {
   it('round-trips a workout through the URL format', () => {
     expect(decodeWorkout(encodeWorkout(workout))).toEqual(workout);
   });
 
   it('produces a URL-safe string', () => {
     expect(encodeWorkout(workout)).toMatch(/^[A-Za-z0-9+\-$]+$/);
+  });
+
+  it('stores the link format version in the link', () => {
+    expect(decodeRaw(encodeWorkout(workout))).toMatchObject({ v: LINK_FORMAT_VERSION });
+    expect(LINK_FORMAT_VERSION).toBe(1);
+  });
+
+  it('still opens links created before versioning (no "v" field)', () => {
+    expect(decodeWorkout(encodeRaw(workout))).toEqual(workout);
+  });
+
+  it.each([2, 0, '1', null])('rejects a link with an unknown version %j', (v) => {
+    expect(decodeWorkout(encodeRaw({ v, ...workout }))).toBeNull();
   });
 
   it.each([

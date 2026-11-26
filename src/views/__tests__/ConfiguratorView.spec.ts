@@ -9,11 +9,9 @@ import {
   type Router,
   type RouterHistory,
 } from 'vue-router';
-import ConfiguratorView from '@/components/ConfiguratorView.vue';
-import { useWorkoutParser } from '@/composables/useWorkoutParser';
+import ConfiguratorView from '@/views/ConfiguratorView.vue';
+import { decodeWorkout, encodeWorkout } from '@/utils/encoding';
 import type { Workout } from '@/types/workout';
-
-const { encodeWorkout, decodeWorkout } = useWorkoutParser();
 
 let router: Router;
 let history: RouterHistory;
@@ -136,6 +134,63 @@ describe('ConfiguratorView – validation', () => {
 
     await wrapper.get('.btn-icon-danger').trigger('click');
     expect(startButton().attributes('disabled')).toBeDefined();
+  });
+});
+
+describe('ConfiguratorView – accessibility and list', () => {
+  it('links every label to its own input', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+    await addExercise('Pompki');
+
+    const labels = wrapper.findAll('label');
+    const ids = labels.map((label) => label.attributes('for'));
+
+    expect(labels).toHaveLength(3 + 2 * 3);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) {
+      expect(id).toBeTruthy();
+      expect(wrapper.find(`input[id="${id}"]`).exists()).toBe(true);
+    }
+  });
+
+  it('names each delete button after its exercise number', async () => {
+    await mountConfigurator({ data: encodeWorkout(sample) });
+    await addExercise('Pompki');
+
+    const buttons = wrapper.findAll('.btn-icon-danger');
+
+    expect(buttons.map((b) => b.attributes('aria-label'))).toEqual([
+      'Usuń ćwiczenie 1',
+      'Usuń ćwiczenie 2',
+    ]);
+  });
+
+  it('keeps the remaining rows intact when one is deleted', async () => {
+    await mountConfigurator();
+    await addExercise('Pierwsze');
+    await addExercise('Drugie');
+    const secondRowInput = wrapper.findAll('.exercise-row input[type="text"]')[1]!.element;
+
+    await wrapper.findAll('.btn-icon-danger')[0]!.trigger('click');
+
+    const rows = wrapper.findAll('.exercise-row');
+    expect(rows).toHaveLength(1);
+    const remainingInput = rows[0]!.get('input[type="text"]').element as HTMLInputElement;
+    expect(remainingInput).toBe(secondRowInput);
+    expect(remainingInput.value).toBe('Drugie');
+  });
+
+  it('does not put row keys or ids into the link', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    await mountConfigurator();
+    await addExercise('Pompki');
+
+    await wrapper.get('.exercise-row input[type="text"]').trigger('change');
+    await flushPromises();
+
+    expect(urlWorkout()?.exercises).toEqual([
+      { name: 'Pompki', workoutDuration: 30, restDuration: 10 },
+    ]);
   });
 });
 
