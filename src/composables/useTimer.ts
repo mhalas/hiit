@@ -1,96 +1,101 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, onScopeDispose, ref, type Ref } from "vue";
 import type { Workout } from "@/types/workout";
 import { useSound } from "./useSound";
 
+export type TimerPhase = 'work' | 'rest';
+
+const BETWEEN_SETS = -1;
+
 export function useTimer(workout: Ref<Workout>) {
-    const { playBeep, playChangeSound } = useSound();
+    const { playBeep, playChangeSound, playFinishSound, dispose: disposeSound } = useSound();
+
+    const firstWorkDuration = () => workout.value.exercises[0]?.workoutDuration ?? 0;
 
     const currentSet = ref(1);
     const currentExerciseIndex = ref(0);
+    const currentPhase = ref<TimerPhase>('work');
+    const secondsLeft = ref(firstWorkDuration());
     const isRunning = ref(false);
-    const currentPhase = ref<'work' | 'rest'>('work');
-
-    const initialDuration = workout.value.exercises[0]?.workoutDuration || 0;
-    const secondsLeft = ref(initialDuration);
+    const isFinished = ref(false);
 
     let timerInterval: ReturnType<typeof setInterval> | null = null;
 
     const currentExercise = computed(() => {
-        return workout.value.exercises[currentExerciseIndex.value] || null;
+        return workout.value.exercises[currentExerciseIndex.value] ?? null;
     });
 
-    const nextStep = () => {
-        playChangeSound();
+    const isLastExercise = () => currentExerciseIndex.value >= workout.value.exercises.length - 1;
+    const isLastSet = () => currentSet.value >= workout.value.sets;
 
-        if (currentPhase.value === 'rest' && currentExerciseIndex.value === -1) {
-            currentSet.value++;
-            currentExerciseIndex.value = 0;
-            currentPhase.value = 'work';
-            secondsLeft.value = workout.value.exercises[0]?.workoutDuration || 0;
+    const enterPhase = (phase: TimerPhase, seconds: number) => {
+        currentPhase.value = phase;
+        secondsLeft.value = seconds;
+        playChangeSound();
+    };
+
+    const startNextSet = () => {
+        currentSet.value++;
+        currentExerciseIndex.value = 0;
+        enterPhase('work', firstWorkDuration());
+    };
+
+    const finish = () => {
+        pause();
+        isFinished.value = true;
+        secondsLeft.value = 0;
+        playFinishSound();
+    };
+
+    const moveToNextExerciseOrSet = () => {
+        if (!isLastExercise()) {
+            currentExerciseIndex.value++;
+            enterPhase('work', currentExercise.value?.workoutDuration ?? 0);
+        } else if (isLastSet()) {
+            finish();
+        } else if (workout.value.restBetweenSets > 0) {
+            currentExerciseIndex.value = BETWEEN_SETS;
+            enterPhase('rest', workout.value.restBetweenSets);
+        } else {
+            startNextSet();
+        }
+    };
+
+    const nextStep = () => {
+        if (currentExerciseIndex.value === BETWEEN_SETS) {
+            startNextSet();
             return;
         }
 
         const ex = currentExercise.value;
         if (!ex) {
+            finish();
             return;
         }
 
-        if (currentPhase.value === 'work') {
-            if (ex.restDuration > 0) {
-                currentPhase.value = 'rest';
-                secondsLeft.value = ex.restDuration;
-            } else {
-                moveToNextExerciseOrSet();
-            }
+        const isLastExerciseOfWorkout = isLastExercise() && isLastSet();
+        if (currentPhase.value === 'work' && ex.restDuration > 0 && !isLastExerciseOfWorkout) {
+            enterPhase('rest', ex.restDuration);
         } else {
             moveToNextExerciseOrSet();
         }
     };
 
-    const moveToNextExerciseOrSet = () => {
-        if (currentExerciseIndex.value < workout.value.exercises.length - 1) {
-            currentExerciseIndex.value++;
-            currentPhase.value = 'work';
-            secondsLeft.value = currentExercise.value?.workoutDuration || 0;
-        } else {
-            if (currentSet.value < workout.value.sets) {
-                if (workout.value.restBetweenSets && workout.value.restBetweenSets > 0) {
-
-                    currentExerciseIndex.value = -1;
-                    currentPhase.value = 'rest';
-                    secondsLeft.value = workout.value.restBetweenSets;
-                } else {
-                    currentSet.value++;
-                    currentExerciseIndex.value = 0;
-                    currentPhase.value = 'work';
-                    secondsLeft.value = workout.value.exercises[0]?.workoutDuration || 0;
-                }
-            } else {
-                pause();
-            }
+    const tick = () => {
+        secondsLeft.value = Math.max(0, secondsLeft.value - 1);
+        if (secondsLeft.value === 0) {
+            nextStep();
+        } else if (secondsLeft.value <= 3) {
+            playBeep(440, 0.1);
         }
     };
 
     const start = () => {
-        if (isRunning.value) {
+        if (isRunning.value || isFinished.value || workout.value.exercises.length === 0) {
             return;
         }
 
         isRunning.value = true;
-
-        timerInterval = window.setInterval(() => {
-            if (secondsLeft.value > 1) {
-                secondsLeft.value--;
-                if(secondsLeft.value <= 3) {
-                    playBeep(440, 0.1);
-                }
-            } else if(secondsLeft.value === 1) {
-                secondsLeft.value--;
-                playBeep(880, 0.15);
-            } else {
-                nextStep();
-            }
-        }, 1000);
+        timerInterval = setInterval(tick, 1000);
     };
 
     const pause = () => {
@@ -103,12 +108,28 @@ export function useTimer(workout: Ref<Workout>) {
 
     const reset = () => {
         pause();
+        isFinished.value = false;
         currentSet.value = 1;
         currentExerciseIndex.value = 0;
         currentPhase.value = 'work';
-        secondsLeft.value = workout.value.exercises[0]?.workoutDuration || 30;
+        secondsLeft.value = firstWorkDuration();
     };
 
-    return { secondsLeft, currentSet, currentPhase, isRunning, currentExerciseIndex, start, pause, reset };
-}
+    onScopeDispose(() => {
+        pause();
+        disposeSound();
+    });
 
+    return {
+        secondsLeft,
+        currentSet,
+        currentPhase,
+        currentExercise,
+        currentExerciseIndex,
+        isRunning,
+        isFinished,
+        start,
+        pause,
+        reset,
+    };
+}

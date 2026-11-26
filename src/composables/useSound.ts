@@ -67,8 +67,45 @@ export function useSound() {
     }
   };
 
+  const playFinishSound = () => {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      [523.25, 659.25, 783.99].forEach((frequency, i) => {
+        const start = ctx.currentTime + i * 0.18;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.value = frequency;
+
+        gain.gain.setValueAtTime(0.15, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.3);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.3);
+      });
+    } catch (e) {
+      console.error('Błąd odtwarzania dźwięku zakończenia:', e);
+    }
+  };
+
+  const dispose = () => {
+    if (audioCtx) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
+  };
+
   return {
     playBeep,
     playChangeSound,
+    playFinishSound,
+    dispose,
   };
 }

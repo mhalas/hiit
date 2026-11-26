@@ -1,46 +1,55 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, type Ref } from 'vue';
-import type { Workout } from '../types/workout';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import type { Workout } from '@/types/workout';
 import { useRoute, useRouter } from 'vue-router';
 import { useWorkoutParser } from '@/composables/useWorkoutParser';
+import { createEmptyWorkout, isValidInt, isWorkoutValid, sanitizeWorkout } from '@/utils/workout';
 
 const route = useRoute();
 const router = useRouter();
 const { encodeWorkout, decodeWorkout } = useWorkoutParser();
-const workout: Ref<Workout> = ref({
-    title: '',
-    exercises: [],
-    sets: 1,
-    restBetweenSets: 0
-} as Workout);
 
-onMounted(() => {
-    const data = route.query.data as string | undefined;
-    if (data) {
-        const parsedWorkout = decodeWorkout(data);
-        if (parsedWorkout) {
-            workout.value = parsedWorkout;
-        } else {
-            console.error('Nie udało się zdekodować treningu z URL.');
-        }
-    } else {
-        console.error('Brak danych treningu w URL.');
-    }
-});
+const rawData = route.query.data;
+const decoded = decodeWorkout(rawData);
+const loadError = ref(rawData !== undefined && decoded === null);
+const workout = ref<Workout>(decoded ?? createEmptyWorkout());
 
-watch(workout, (updatedWorkout) => {
-    if (updatedWorkout) {
-      const encodedData = encodeWorkout(updatedWorkout);
-      const url = new URL(window.location.href);
-      url.searchParams.set('data', encodedData);
-      window.history.replaceState({}, '', url.toString());
-    }
-  },
-  { deep: true }
-);
+const canStart = computed(() => isWorkoutValid(workout.value));
 
-const startWorkout = () => {
-  router.push({path: '/timer', query: { data: encodeWorkout(workout.value) }});
+const URL_SYNC_DELAY_MS = 300;
+let urlSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+const cancelUrlSync = () => {
+  if (urlSyncTimer !== null) {
+    clearTimeout(urlSyncTimer);
+    urlSyncTimer = null;
+  }
+};
+
+const syncUrl = () => {
+  cancelUrlSync();
+  return router.replace({ query: { data: encodeWorkout(workout.value) } });
+};
+
+watch(workout, () => {
+  cancelUrlSync();
+  urlSyncTimer = setTimeout(syncUrl, URL_SYNC_DELAY_MS);
+}, { deep: true });
+
+onBeforeUnmount(cancelUrlSync);
+
+const onFieldChange = () => {
+  sanitizeWorkout(workout.value);
+  void syncUrl();
+};
+
+const startWorkout = async () => {
+  sanitizeWorkout(workout.value);
+  if (!canStart.value) {
+    return;
+  }
+  await syncUrl();
+  await router.push({ path: '/timer', query: { data: encodeWorkout(workout.value) } });
 };
 
 const addExercise = () => {
@@ -65,8 +74,12 @@ const removeExercise = (index: number) => {
       <p class="subtitle">Wprowadź nazwę, ustaw serie i czas trwania poszczególnych ćwiczeń.</p>
     </header>
 
+    <p v-if="loadError" class="alert" role="alert">
+      Nie udało się wczytać treningu z linku – jest uszkodzony lub niekompletny. Możesz stworzyć trening od nowa.
+    </p>
+
     <!-- Karta główna formularza -->
-    <div class="card main-card">
+    <div class="card main-card" @change="onFieldChange">
       <!-- Nazwa treningu -->
       <div class="input-group">
         <label>Nazwa treningu</label>
@@ -83,12 +96,14 @@ const removeExercise = (index: number) => {
       <div class="global-settings-grid">
         <div class="input-group">
           <label>Liczba obwodów (Serie)</label>
-          <input v-model.number="workout.sets" type="number" min="1" />
+          <input v-model.number="workout.sets" type="number" min="1" step="1"
+            :class="{ invalid: !isValidInt(workout.sets, 'sets') }" />
         </div>
 
         <div class="input-group">
           <label>Przerwa między obwodami (s)</label>
-          <input v-model.number="workout.restBetweenSets" type="number" min="0" />
+          <input v-model.number="workout.restBetweenSets" type="number" min="0" step="1"
+            :class="{ invalid: !isValidInt(workout.restBetweenSets, 'restBetweenSets') }" />
         </div>
       </div>
 
@@ -119,12 +134,14 @@ const removeExercise = (index: number) => {
 
           <div class="input-group small">
             <label>Praca (s)</label>
-            <input v-model.number="ex.workoutDuration" type="number" min="1" />
+            <input v-model.number="ex.workoutDuration" type="number" min="1" step="1"
+              :class="{ invalid: !isValidInt(ex.workoutDuration, 'workoutDuration') }" />
           </div>
 
           <div class="input-group small">
             <label>Odpoczynek (s)</label>
-            <input v-model.number="ex.restDuration" type="number" min="0" />
+            <input v-model.number="ex.restDuration" type="number" min="0" step="1"
+              :class="{ invalid: !isValidInt(ex.restDuration, 'restDuration') }" />
           </div>
 
           <button class="btn-icon-danger" @click="removeExercise(index)" title="Usuń ćwiczenie">
@@ -137,7 +154,7 @@ const removeExercise = (index: number) => {
 
       <!-- Akcja główna -->
       <div class="actions">
-        <button class="btn-primary full-width" @click="startWorkout" :disabled="workout.exercises.length === 0">
+        <button class="btn-primary full-width" @click="startWorkout" :disabled="!canStart">
           Rozpocznij Trening
         </button>
       </div>
@@ -219,6 +236,19 @@ input:focus {
   outline: none;
   border-color: var(--accent, #ff6d00);
   background: rgba(255, 255, 255, 0.06);
+}
+
+input.invalid {
+  border-color: #ff4b4b;
+}
+
+.alert {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 75, 75, 0.4);
+  background: rgba(255, 75, 75, 0.1);
+  color: #ffb4b4;
 }
 
 .divider {
@@ -315,20 +345,5 @@ input:focus {
   width: 100%;
   padding: 1rem;
   font-size: 1.1rem;
-  border-radius: 50px;
-}
-
-.btn-primary {
-  background: var(--accent, #ff6d00);
-  color: white;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary:hover {
-  filter: brightness(1.15);
-  transform: translateY(-2px);
 }
 </style>

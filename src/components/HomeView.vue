@@ -185,32 +185,10 @@ kbd {
 .btn-primary, .btn-secondary {
   padding: 1rem 2.5rem;
   font-size: 1.1rem;
-  font-weight: 600;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-primary {
-  background: var(--accent, #ff6d00);
-  color: white;
-  border: none;
-}
-
-.btn-primary:hover {
-  filter: brightness(1.15);
-  transform: translateY(-2px);
 }
 
 .btn-secondary {
   background: transparent;
-  color: var(--text, #e0e0e0);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.4);
 }
 
 @media (min-width: 768px) {

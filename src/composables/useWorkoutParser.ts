@@ -1,4 +1,5 @@
 import type { Workout } from '@/types/workout';
+import { normalizeWorkout } from '@/utils/workout';
 import LZString from 'lz-string';
 
 export function useWorkoutParser() {
@@ -7,9 +8,16 @@ export function useWorkoutParser() {
         return LZString.compressToEncodedURIComponent(jsonString);
     }
 
-    const decodeWorkout = (encodedWorkout: string): Workout | null => {
+    const decodeWorkout = (encodedWorkout: unknown): Workout | null => {
+        if (typeof encodedWorkout !== 'string' || encodedWorkout === '') {
+            return null;
+        }
         try {
-            return JSON.parse(LZString.decompressFromEncodedURIComponent(encodedWorkout)) as Workout;
+            const json = LZString.decompressFromEncodedURIComponent(encodedWorkout);
+            if (!json) {
+                return null;
+            }
+            return normalizeWorkout(JSON.parse(json));
         } catch(error) {
             console.error('Błąd podczas wczytywania treningu', error);
             return null;

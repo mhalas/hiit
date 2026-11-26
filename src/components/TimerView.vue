@@ -1,49 +1,97 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useWorkoutParser } from '../composables/useWorkoutParser';
-import type { Workout } from '../types/workout';
+import { useWorkoutParser } from '@/composables/useWorkoutParser';
+import type { Workout } from '@/types/workout';
 import { useTimer } from '@/composables/useTimer';
+import { createEmptyWorkout } from '@/utils/workout';
 
 const route = useRoute();
 const router = useRouter();
-const { decodeWorkout } = useWorkoutParser();
+const { encodeWorkout, decodeWorkout } = useWorkoutParser();
 
-const workout = ref<Workout>({
-    title: '',
-    sets: 1,
-    exercises: [],
-    restBetweenSets: 0,
-} as Workout);
+const decoded = decodeWorkout(route.query.data);
+const workout = ref<Workout>(decoded ?? createEmptyWorkout());
+const loadError: 'invalid' | 'empty' | null =
+    decoded === null ? 'invalid' : decoded.exercises.length === 0 ? 'empty' : null;
 
-const { secondsLeft, currentSet, currentPhase, isRunning, currentExerciseIndex, start, pause, reset } = useTimer(workout);
+const {
+    secondsLeft, currentSet, currentPhase, currentExercise, currentExerciseIndex,
+    isRunning, isFinished, start, pause, reset,
+} = useTimer(workout);
 
 const backToConfigurator = () => {
-  router.push({path: '/configurator', query: { data: route.query.data as string }});
+    if (decoded === null) {
+        router.push('/configurator');
+        return;
+    }
+    router.push({ path: '/configurator', query: { data: encodeWorkout(workout.value) } });
 };
 
-const currentExercise = computed(() => {
-    if (!workout.value) return null;
-    return workout.value.exercises[currentExerciseIndex.value];
+const lastTickAt = ref(performance.now());
+const now = ref(performance.now());
+let animationFrame: number | null = null;
+
+const animate = () => {
+    now.value = performance.now();
+    animationFrame = requestAnimationFrame(animate);
+};
+
+const stopAnimation = () => {
+    if (animationFrame !== null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+    }
+};
+
+watch([secondsLeft, isRunning], () => {
+    lastTickAt.value = performance.now();
+    now.value = lastTickAt.value;
+}, { flush: 'sync' });
+
+watch(isRunning, (running) => {
+    stopAnimation();
+    if (running) {
+        animate();
+    }
 });
 
-const progressPercentage = computed(() => {
+onUnmounted(stopAnimation);
+
+const remainingSeconds = computed(() => {
+    if (!isRunning.value) {
+        return secondsLeft.value;
+    }
+    const elapsed = Math.min(Math.max((now.value - lastTickAt.value) / 1000, 0), 1);
+    return Math.max(secondsLeft.value - elapsed, 0);
+});
+
+const phaseDuration = computed(() => {
+    if (currentPhase.value === 'rest' && currentExerciseIndex.value === -1) {
+        return workout.value.restBetweenSets;
+    }
+
     const ex = currentExercise.value;
     if (!ex) {
         return 0;
     }
 
-    if (currentPhase.value === 'rest' && currentExerciseIndex.value === -1) {
-        const maxTime = workout.value.restBetweenSets || 1;
-        return secondsLeft.value / maxTime;
-    }
+    return currentPhase.value === 'work' ? ex.workoutDuration : ex.restDuration;
+});
 
-    const maxTime = currentPhase.value === 'work' ? ex.workoutDuration : ex.restDuration;
-    if (maxTime === 0) return 0;
-    return secondsLeft.value / maxTime;
+const progressPercentage = computed(() => {
+    if (isFinished.value) {
+        return 1;
+    }
+    const maxTime = phaseDuration.value;
+    return maxTime > 0 ? remainingSeconds.value / maxTime : 0;
 });
 
 const currentPhaseText = computed(() => {
+    if (isFinished.value) {
+        return 'TRENING ZAKOŃCZONY';
+    }
+
     if (currentPhase.value === 'rest') {
         if (currentExerciseIndex.value === -1) {
             return 'PRZERWA MIĘDZY SERIAMI';
@@ -56,7 +104,9 @@ const currentPhaseText = computed(() => {
 });
 
 const toggle = () => {
-    if (isRunning.value) {
+    if (isFinished.value) {
+        reset();
+    } else if (isRunning.value) {
         pause();
     } else {
         start();
@@ -67,23 +117,10 @@ const circumference = 2 * Math.PI * 120;
 const dashOffset = computed(() => {
     return circumference - progressPercentage.value * circumference;
 });
-
-onMounted(() => {
-    const data = route.query.data as string;
-    if (data) {
-        const decoded = decodeWorkout(data);
-        if (decoded) {
-            workout.value = decoded;
-            if (decoded.exercises.length > 0) {
-                secondsLeft.value = decoded.exercises[0]?.workoutDuration || 0;
-            }
-        }
-    }
-});
 </script>
 
 <template>
-    <div class="timer-container" v-if="workout">
+    <div class="timer-container" v-if="!loadError">
         <div class="top-nav">
             <button class="btn-back" @click="backToConfigurator">
                 ← Wróć do konfiguratora
@@ -95,22 +132,22 @@ onMounted(() => {
         </header>
 
         <!-- Główny okrągły licznik -->
-        <div class="circle-timer" :class="currentPhase">
+        <div class="circle-timer" :class="isFinished ? 'finished' : currentPhase">
             <svg class="progress-ring" width="260" height="260" viewBox="0 0 260 260">
                 <circle class="progress-ring__circle" stroke-width="10" stroke="currentColor" fill="transparent" r="120"
                     cx="130" cy="130" :stroke-dasharray="circumference" :style="{ strokeDashoffset: dashOffset }" />
             </svg>
             <div class="timer-content">
                 <span class="phase-label">{{ currentPhaseText }}</span>
-                <span class="time-left">{{ secondsLeft }}s</span>
-                <span class="exercise-name-current">{{ currentExercise?.name }}</span>
+                <span class="time-left">{{ isFinished ? '✓' : `${secondsLeft}s` }}</span>
+                <span class="exercise-name-current">{{ isFinished ? 'Świetna robota!' : currentExercise?.name }}</span>
             </div>
         </div>
 
         <!-- Przyciski sterujące -->
         <div class="timer-controls">
             <button class="btn-primary" @click="toggle">
-                {{ isRunning ? 'Pauza' : 'Start' }}
+                {{ isFinished ? 'Od nowa' : isRunning ? 'Pauza' : 'Start' }}
             </button>
             <button class="btn-secondary" @click="reset">Reset</button>
         </div>
@@ -120,7 +157,7 @@ onMounted(() => {
             <h3>Harmonogram treningu</h3>
             <div class="exercises-list">
                 <div v-for="(ex, index) in workout.exercises" :key="index" class="playlist-item"
-                    :class="{ active: index === currentExerciseIndex }">
+                    :class="{ active: !isFinished && index === currentExerciseIndex }">
                     <div class="item-info">
                         <span class="item-number">{{ index + 1 }}</span>
                         <span class="item-name">{{ ex.name }}</span>
@@ -134,8 +171,14 @@ onMounted(() => {
         </div>
     </div>
 
-    <div v-else class="timer-container loading">
-        <p>Ładowanie treningu...</p>
+    <div v-else class="timer-container load-error" role="alert">
+        <h2>Nie udało się wczytać treningu</h2>
+        <p>
+            {{ loadError === 'empty'
+                ? 'Ten trening nie zawiera żadnych ćwiczeń.'
+                : 'Link jest uszkodzony, niekompletny albo nie zawiera treningu.' }}
+        </p>
+        <button class="btn-primary" @click="backToConfigurator">Przejdź do konfiguratora</button>
     </div>
 </template>
 
@@ -191,7 +234,6 @@ onMounted(() => {
 
 .progress-ring__circle {
     stroke: currentColor;
-    transition: stroke-dashoffset 1s linear;
 }
 
 /* Kolory faz */
@@ -228,6 +270,11 @@ onMounted(() => {
     color: #10b981;
 }
 
+.circle-timer.finished,
+.circle-timer.finished .phase-label {
+    color: var(--accent, #ff6d00);
+}
+
 .time-left {
     font-size: 4rem;
     font-weight: 800;
@@ -261,16 +308,6 @@ onMounted(() => {
     font-size: 1rem;
     border-radius: 50px;
     font-weight: 600;
-}
-
-.btn-secondary {
-    background: rgba(255, 255, 255, 0.05);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
 }
 
 /* Harmonogram / Lista */
@@ -358,9 +395,18 @@ onMounted(() => {
     border-radius: 6px;
 }
 
-.loading {
+.load-error {
     text-align: center;
-    padding-top: 20vh;
+    padding-top: 15vh;
+}
+
+.load-error h2 {
+    margin: 0 0 0.75rem;
+    color: #fff;
+}
+
+.load-error p {
+    margin: 0 0 2rem;
     color: var(--text-dim, #a0a0a0);
 }
 </style>
