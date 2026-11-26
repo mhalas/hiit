@@ -1,0 +1,5 @@
+dist
+coverage
+node_modules
+package-lock.json
+.github/workflows/deploy-to-github-actions.yml

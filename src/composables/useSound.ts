@@ -4,7 +4,7 @@ let isUnlocked = false;
 export function useSound() {
   const getAudioContext = () => {
     if (!audioCtx) {
-      // @ts-ignore
+      // @ts-expect-error
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (AudioContextClass) {
         audioCtx = new AudioContextClass();

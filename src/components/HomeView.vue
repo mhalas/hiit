@@ -11,11 +11,12 @@ const goToConfigurator = () => router.push('/configurator');
     <header class="hero">
       <span class="badge">Interwałowy Asystent</span>
       <h1>WorkoutTimer</h1>
-      <p class="subtitle">Przejmij pełną kontrolę nad swoimi treningami HIIT i Tabata w nowoczesny i minimalistyczny sposób.</p>
-      
-      <button class="btn-primary" @click="goToConfigurator()">
-        Stwórz własny trening
-      </button>
+      <p class="subtitle">
+        Przejmij pełną kontrolę nad swoimi treningami HIIT i Tabata w nowoczesny i minimalistyczny
+        sposób.
+      </p>
+
+      <button class="btn-primary" @click="goToConfigurator()">Stwórz własny trening</button>
     </header>
 
     <div class="divider"></div>
@@ -25,26 +26,40 @@ const goToConfigurator = () => router.push('/configurator');
       <div class="info-card">
         <h2>🔥 Czym jest HIIT?</h2>
         <p>
-          <strong>High-Intensity Interval Training</strong> to metoda polegająca na przeplataniu krótkich okresów maksymalnego wysiłku z momentami krótkiego odpoczynku. Pozwala spalić mnóstwo kalorii, podkręcić metabolizm i zbudować kondycję w rekordowo krótkim czasie.
+          <strong>High-Intensity Interval Training</strong> to metoda polegająca na przeplataniu
+          krótkich okresów maksymalnego wysiłku z momentami krótkiego odpoczynku. Pozwala spalić
+          mnóstwo kalorii, podkręcić metabolizm i zbudować kondycję w rekordowo krótkim czasie.
         </p>
       </div>
 
       <div class="info-card">
         <h2>⚡ Jak stworzyć swój plan?</h2>
         <ol class="steps-list">
-          <li><strong>Skonfiguruj ćwiczenia:</strong> Wpisz nazwy, czas trwania fazy pracy oraz odpoczynku dla każdego ruchu.</li>
-          <li><strong>Ustaw serie:</strong> Określ liczbę obwodów oraz czas przerwy między nimi.</li>
-          <li><strong>Uruchom timer:</strong> Kliknij start i skup się wyłącznie na wysiłku – aplikacja poprowadzi Cię dźwiękiem i obrazem.</li>
+          <li>
+            <strong>Skonfiguruj ćwiczenia:</strong> Wpisz nazwy, czas trwania fazy pracy oraz
+            odpoczynku dla każdego ruchu.
+          </li>
+          <li>
+            <strong>Ustaw serie:</strong> Określ liczbę obwodów oraz czas przerwy między nimi.
+          </li>
+          <li>
+            <strong>Uruchom timer:</strong> Kliknij start i skup się wyłącznie na wysiłku –
+            aplikacja poprowadzi Cię dźwiękiem i obrazem.
+          </li>
         </ol>
       </div>
 
       <div class="info-card highlight-card">
         <h2>🔖 Jak zapisać plan na stałe?</h2>
         <p>
-          Nasza aplikacja nie wymaga zakładania konta. Gdy tylko skonfigurujesz swój idealny trening, <strong>adres URL w pasku przeglądarki automatycznie zaktualizuje się</strong>, kodując cały Twój plan.
+          Nasza aplikacja nie wymaga zakładania konta. Gdy tylko skonfigurujesz swój idealny
+          trening, <strong>adres URL w pasku przeglądarki automatycznie zaktualizuje się</strong>,
+          kodując cały Twój plan.
         </p>
         <p class="tip">
-          💡 Wystarczy, że dodasz tę stronę do zakładek przeglądarki (np. skrótem <kbd>Ctrl + D</kbd> / <kbd>Cmd + D</kbd>) lub skopiujesz link, aby mieć do niego dostęp w dowolnym momencie!
+          💡 Wystarczy, że dodasz tę stronę do zakładek przeglądarki (np. skrótem
+          <kbd>Ctrl + D</kbd> / <kbd>Cmd + D</kbd>) lub skopiujesz link, aby mieć do niego dostęp w
+          dowolnym momencie!
         </p>
       </div>
     </section>
@@ -52,9 +67,7 @@ const goToConfigurator = () => router.push('/configurator');
     <!-- Stopka -->
     <footer class="footer">
       <p>Gotowy na trening? Czas zacząć.</p>
-      <button class="btn-secondary" @click="goToConfigurator()">
-        Przejdź do konfiguratora
-      </button>
+      <button class="btn-secondary" @click="goToConfigurator()">Przejdź do konfiguratora</button>
     </footer>
   </div>
 </template>
@@ -182,7 +195,8 @@ kbd {
   font-size: 1.1rem;
 }
 
-.btn-primary, .btn-secondary {
+.btn-primary,
+.btn-secondary {
   padding: 1rem 2.5rem;
   font-size: 1.1rem;
 }
@@ -195,7 +209,7 @@ kbd {
   .info-section {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .highlight-card {
     grid-column: span 2;
   }

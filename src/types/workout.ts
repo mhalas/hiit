@@ -1,8 +1,8 @@
-import type { Exercise } from "./exercise";
+import type { Exercise } from './exercise';
 
 export interface Workout {
-    title: string;
-    exercises: Exercise[];
-    sets: number;
-    restBetweenSets: number;
+  title: string;
+  exercises: Exercise[];
+  sets: number;
+  restBetweenSets: number;
 }

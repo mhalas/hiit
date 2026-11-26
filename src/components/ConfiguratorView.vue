@@ -31,10 +31,14 @@ const syncUrl = () => {
   return router.replace({ query: { data: encodeWorkout(workout.value) } });
 };
 
-watch(workout, () => {
-  cancelUrlSync();
-  urlSyncTimer = setTimeout(syncUrl, URL_SYNC_DELAY_MS);
-}, { deep: true });
+watch(
+  workout,
+  () => {
+    cancelUrlSync();
+    urlSyncTimer = setTimeout(syncUrl, URL_SYNC_DELAY_MS);
+  },
+  { deep: true },
+);
 
 onBeforeUnmount(cancelUrlSync);
 
@@ -54,10 +58,10 @@ const startWorkout = async () => {
 
 const addExercise = () => {
   workout.value.exercises.push({
-      name: '',
-      workoutDuration: 30,
-      restDuration: 10
-    });
+    name: '',
+    workoutDuration: 30,
+    restDuration: 10,
+  });
 };
 
 const removeExercise = (index: number) => {
@@ -75,7 +79,8 @@ const removeExercise = (index: number) => {
     </header>
 
     <p v-if="loadError" class="alert" role="alert">
-      Nie udało się wczytać treningu z linku – jest uszkodzony lub niekompletny. Możesz stworzyć trening od nowa.
+      Nie udało się wczytać treningu z linku – jest uszkodzony lub niekompletny. Możesz stworzyć
+      trening od nowa.
     </p>
 
     <!-- Karta główna formularza -->
@@ -83,11 +88,7 @@ const removeExercise = (index: number) => {
       <!-- Nazwa treningu -->
       <div class="input-group">
         <label>Nazwa treningu</label>
-        <input 
-          v-model="workout.title" 
-          type="text" 
-          placeholder="np. Poranne HIIT Spalanie" 
-        />
+        <input v-model="workout.title" type="text" placeholder="np. Poranne HIIT Spalanie" />
       </div>
 
       <div class="divider"></div>
@@ -96,14 +97,24 @@ const removeExercise = (index: number) => {
       <div class="global-settings-grid">
         <div class="input-group">
           <label>Liczba obwodów (Serie)</label>
-          <input v-model.number="workout.sets" type="number" min="1" step="1"
-            :class="{ invalid: !isValidInt(workout.sets, 'sets') }" />
+          <input
+            v-model.number="workout.sets"
+            type="number"
+            min="1"
+            step="1"
+            :class="{ invalid: !isValidInt(workout.sets, 'sets') }"
+          />
         </div>
 
         <div class="input-group">
           <label>Przerwa między obwodami (s)</label>
-          <input v-model.number="workout.restBetweenSets" type="number" min="0" step="1"
-            :class="{ invalid: !isValidInt(workout.restBetweenSets, 'restBetweenSets') }" />
+          <input
+            v-model.number="workout.restBetweenSets"
+            type="number"
+            min="0"
+            step="1"
+            :class="{ invalid: !isValidInt(workout.restBetweenSets, 'restBetweenSets') }"
+          />
         </div>
       </div>
 
@@ -120,13 +131,9 @@ const removeExercise = (index: number) => {
           Brak ćwiczeń. Kliknij przycisk powyżej, aby dodać pierwsze zadanie.
         </div>
 
-        <div 
-          v-for="(ex, index) in workout.exercises" 
-          :key="index" 
-          class="exercise-row"
-        >
+        <div v-for="(ex, index) in workout.exercises" :key="index" class="exercise-row">
           <div class="exercise-number">{{ index + 1 }}</div>
-          
+
           <div class="input-group flex-grow">
             <label>Nazwa</label>
             <input v-model="ex.name" type="text" placeholder="np. Pompki / Burpees" />
@@ -134,14 +141,24 @@ const removeExercise = (index: number) => {
 
           <div class="input-group small">
             <label>Praca (s)</label>
-            <input v-model.number="ex.workoutDuration" type="number" min="1" step="1"
-              :class="{ invalid: !isValidInt(ex.workoutDuration, 'workoutDuration') }" />
+            <input
+              v-model.number="ex.workoutDuration"
+              type="number"
+              min="1"
+              step="1"
+              :class="{ invalid: !isValidInt(ex.workoutDuration, 'workoutDuration') }"
+            />
           </div>
 
           <div class="input-group small">
             <label>Odpoczynek (s)</label>
-            <input v-model.number="ex.restDuration" type="number" min="0" step="1"
-              :class="{ invalid: !isValidInt(ex.restDuration, 'restDuration') }" />
+            <input
+              v-model.number="ex.restDuration"
+              type="number"
+              min="0"
+              step="1"
+              :class="{ invalid: !isValidInt(ex.restDuration, 'restDuration') }"
+            />
           </div>
 
           <button class="btn-icon-danger" @click="removeExercise(index)" title="Usuń ćwiczenie">
